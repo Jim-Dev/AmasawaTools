@@ -5,7 +5,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 5, 0),
+    "version": (0, 5, 1),
     "blender": (2, 7, 2),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -669,6 +669,439 @@ class Curve2AmaOperator(bpy.types.Operator):
 		wm = context.window_manager
 		return wm.invoke_props_dialog(self)
 
+#Curveを正確なアーマチュア付きメッシュに変換
+class Hair2MeshFullOperator(bpy.types.Operator):
+    bl_idname = "object.hair2meshfull"
+    bl_label = "Hair -> Mesh_Full"
+    bl_options = {'REGISTER','UNDO'}
+    bl_description = "Curveを正確なアーマチュア付きメッシュに変換"
+
+    my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
+
+    def execute(self, context):
+        active = bpy.context.scene.objects.active
+        curveList = []
+        amaList = []
+        meshList = []
+        for i,spline in enumerate(active.data.splines):
+            #スプライン一つ一つにカーブオブジェクトを作る
+            pos = active.location
+            defaultrot = active.rotation_euler
+            bpy.ops.curve.primitive_nurbs_path_add(radius=1, view_align=False,
+                enter_editmode=False, location=pos)
+            #Curveの設定からコピーできるものをコピーする
+            curve = bpy.context.scene.objects.active
+            oldCurve = active
+            #splineを全て消し、既存のものからコピーする
+            curve.data.splines.clear()
+            newSpline = curve.data.splines.new(type='NURBS')
+            newSpline.points.add(len(spline.points)-1)
+            for point,newPoint in zip(spline.points,newSpline.points):
+                newPoint.co = point.co
+                newPoint.radius = point.radius
+                newPoint.tilt = point.tilt
+                newPoint.weight_softbody = point.weight_softbody
+            newSpline.use_smooth = spline.use_smooth
+            newSpline.use_endpoint_u = spline.use_endpoint_u
+            newSpline.use_bezier_u = spline.use_bezier_u
+            newSpline.id_data.bevel_object = spline.id_data.bevel_object
+            newSpline.id_data.taper_object = spline.id_data.taper_object
+            newSpline.id_data.use_fill_caps = False
+            newSpline.id_data.resolution_u = spline.id_data.resolution_u
+            newSpline.id_data.render_resolution_u = spline.id_data.render_resolution_u
+            newSpline.order_u = spline.order_u
+            newSpline.resolution_u = spline.resolution_u
+            curve.data.twist_mode = oldCurve.data.twist_mode
+            if newSpline.id_data.bevel_object == None:
+                newSpline.id_data.bevel_depth = spline.id_data.bevel_depth
+                newSpline.id_data.bevel_resolution = spline.id_data.bevel_resolution
+            #ソフトボディを設定
+            if oldCurve.soft_body != None:
+                bpy.ops.object.modifier_add(type='SOFT_BODY')
+                curve.soft_body.mass = oldCurve.soft_body.mass
+                curve.soft_body.goal_friction = oldCurve.soft_body.goal_friction
+                curve.soft_body.friction = oldCurve.soft_body.friction
+                curve.soft_body.speed = oldCurve.soft_body.speed
+                curve.soft_body.goal_default = oldCurve.soft_body.goal_default
+                curve.soft_body.goal_max = oldCurve.soft_body.goal_max
+                curve.soft_body.goal_min = oldCurve.soft_body.goal_min
+                curve.soft_body.goal_spring = oldCurve.soft_body.goal_spring
+            #アーマチュア制作用の基準カーブを作る
+            bpy.context.scene.objects.active = curve
+            bpy.ops.object.duplicate()
+            stdCurve = bpy.context.scene.objects.active
+            stdCurve.name = "stdCurve"
+            stdCurve.data.bevel_depth = 0
+            stdCurve.data.extrude = 0
+            stdCurve.data.bevel_object = None
+            bpy.ops.object.convert(target='MESH', keep_original=False)
+            stdCurveObj = bpy.context.scene.objects.active
+            print("koko20",stdCurveObj)
+            #アーマチュアを作る
+            bpy.ops.object.armature_add(location=pos,enter_editmode=False)
+            activeAma = bpy.context.scene.objects.active
+            bpy.ops.object.editmode_toggle()
+            bpy.ops.armature.select_all(action='SELECT')
+            bpy.ops.armature.delete()
+            bpy.ops.armature.bone_primitive_add()
+            print("koko21 ",stdCurveObj.data.vertices[0].co)
+            
+            activeAma.data.edit_bones[0].head = [stdCurveObj.data.vertices[0].co[0],
+                                                    stdCurveObj.data.vertices[0].co[1],
+                                                    stdCurveObj.data.vertices[0].co[2]]
+            activeAma.data.edit_bones[0].name = self.my_boneName + str(i)
+            print("koko4",len(newSpline.points))
+            if len(stdCurveObj.data.vertices) >= 3:
+                for i,newPoint in enumerate(stdCurveObj.data.vertices[1:-1]):
+                    print("koko2",newPoint.co)
+                    rootBoneName = activeAma.data.edit_bones[0].name
+                    newBone = activeAma.data.edit_bones.new(rootBoneName)
+                    print("koko3",i,newBone)
+                    newBone.parent = activeAma.data.edit_bones[i]
+                    newBone.use_connect = True
+                    newBone.head = [newPoint.co[0],
+                                    newPoint.co[1],
+                                    newPoint.co[2]]
+            else:
+                newBone = activeAma.data.edit_bones[0]
+            lastBone = newBone
+            lastBone.tail = [stdCurveObj.data.vertices[-1].co[0],
+                            stdCurveObj.data.vertices[-1].co[1],
+                            stdCurveObj.data.vertices[-1].co[2]]
+            activeAma.data.draw_type = "STICK"
+            #カーブを実体化する
+            #物理に使うので元のカーブは残す
+            bpy.ops.object.editmode_toggle()
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.context.scene.objects.active = curve
+            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+            print("koko5",bpy.context.scene,bpy.context.scene.objects.active,curve.rotation_euler)
+            bpy.ops.object.convert(target='MESH', keep_original=True)
+            meshobj = bpy.context.scene.objects.active
+            print("koko6",meshobj)
+            #マテリアルをコピーする
+            print("koko12",meshobj.data.materials,spline.material_index)
+            if len(oldCurve.data.materials) >= 1:
+                material = oldCurve.data.materials[spline.material_index]
+                meshobj.data.materials.append(material)
+            #元のカーブは多角形にしてBevelやテイパーやメッシュを外してを設定して、物理として使う
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.context.scene.objects.active = curve
+            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+            bebelObj = curve.data.bevel_object
+            curve.data.bevel_object = None
+            curve.data.taper_object = None
+            curve.data.bevel_depth = 0
+            curve.data.bevel_resolution = 0
+            #newSpline.type = curve.data.spline[0].type
+            #アーマチュアにスプラインIKをセット
+            if len(activeAma.pose.bones) >= 1:
+                print("koko7",activeAma.pose.bones[-1].constraints)
+                spIK = activeAma.pose.bones[-1].constraints.new("SPLINE_IK")
+                spIK.target = curve
+                spIK.chain_count = len(activeAma.data.bones)
+                spIK.use_chain_offset = False
+                spIK.use_y_stretch = True
+                spIK.use_curve_radius = False
+                activeAma.pose.bones[-1]["spIKName"] = curve.name
+            curve.data.resolution_u = 64
+            #重複した頂点を削除
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.ops.object.select_pattern(pattern=meshobj.name, case_sensitive=False, extend=False)
+            bpy.context.scene.objects.active = meshobj
+            bpy.ops.object.editmode_toggle()
+            bpy.ops.mesh.select_all(action='TOGGLE')
+            bpy.ops.mesh.remove_doubles(threshold=0.0001)
+            bpy.ops.object.editmode_toggle()
+            #自動のウェイトでアーマチュアを設定
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.ops.object.select_pattern(pattern=meshobj.name, case_sensitive=False, extend=False)
+            bpy.ops.object.select_pattern(pattern=activeAma.name, case_sensitive=False, extend=True)
+            bpy.context.scene.objects.active = activeAma
+            bpy.ops.object.parent_set(type='ARMATURE_AUTO')
+            #シェイプキーを２つ追加し、一つをBasis、一つをKey1にする
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.context.scene.objects.active = curve
+            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+            bpy.ops.object.shape_key_add(from_mix=False)
+            bpy.ops.object.shape_key_add(from_mix=False)
+            curve.data.shape_keys.key_blocks[1].value = 1
+            bpy.context.object.active_shape_key_index = 1
+            print("koko13",curve.data.shape_keys)
+            #Curveをレントゲンにして透けて見えるように
+            curve.show_x_ray = True
+            #Curveとアーマチュアとメッシュは後でまとめるのでリストにする
+            curveList.append(curve)
+            amaList.append(activeAma)
+            meshList.append(meshobj)
+            #基準カーブ消去
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.context.scene.objects.active = stdCurveObj
+            bpy.ops.object.select_pattern(pattern=stdCurveObj.name, case_sensitive=False, extend=False)
+            bpy.ops.object.delete(use_global=False)
+        #Curveの親用のEmptyを作る
+        bpy.ops.object.empty_add(type='PLAIN_AXES', view_align=False, location=active.location)
+        emptyobj = bpy.context.scene.objects.active
+        emptyobj.name = self.my_boneName + "Emp"
+        #アーマチュアの親オブジェクトを作る
+        bpy.ops.object.armature_add(location=active.location,enter_editmode=False)
+        pama = bpy.context.scene.objects.active
+        pama.data.bones[0].use_deform = False
+        #Curveの親を設定
+        for c in curveList:
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.ops.object.select_pattern(pattern=c.name, case_sensitive=False, extend=False)
+            bpy.ops.object.select_pattern(pattern=emptyobj.name, case_sensitive=False, extend=True)
+            bpy.context.scene.objects.active = emptyobj
+            bpy.ops.object.parent_set(type='OBJECT', xmirror=False, keep_transform=True)
+        #アーマチュアを合成
+        bpy.ops.object.select_all(action='DESELECT')
+        for ama in amaList:
+            bpy.ops.object.select_pattern(pattern=ama.name, case_sensitive=False, extend=True)
+        bpy.ops.object.select_pattern(pattern=pama.name, case_sensitive=False, extend=True)
+        bpy.context.scene.objects.active = pama
+        pama.data.draw_type = "STICK"
+        bpy.ops.object.join()
+        pama = bpy.context.scene.objects.active
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_pattern(pattern=pama.name, case_sensitive=False, extend=False)
+        bpy.ops.object.select_pattern(pattern=emptyobj.name, case_sensitive=False, extend=True)
+        bpy.context.scene.objects.active = emptyobj
+        bpy.ops.object.parent_set(type='OBJECT', xmirror=False, keep_transform=True)
+        pama.name = self.my_boneName
+        #メッシュを合成
+        bpy.ops.object.select_all(action='DESELECT')
+        for m in meshList:
+            bpy.ops.object.select_pattern(pattern=m.name, case_sensitive=False, extend=True)
+        if len(meshList) >= 1:
+            bpy.context.scene.objects.active = meshList[0]
+            bpy.ops.object.join()
+            activeMesh = bpy.context.scene.objects.active
+            activeMesh.modifiers["Armature"].object = pama
+        #親エンプティの回転を元のCurveと同じにする
+        emptyobj.rotation_euler = defaultrot
+        #アーマチュアのデータを随時更新に変更
+        pama.use_extra_recalc_data = True
+        #このアーマチュアの名前のボーングループをセット
+        boneGroups = pama.pose.bone_groups.new(self.my_boneName)
+        print("koko14",boneGroups)
+        for bone in pama.pose.bones:
+            bone.bone_group = boneGroups
+        layers=(False, False,
+             False, False, False, False, False, False,
+             False, False, False, False, False, False,
+             False, False, False, False, False, False,
+             False, False, False, True, False, False,
+             False, False, False, False, False, False)
+        for i,bone in enumerate(pama.data.bones):
+            if i != 0:
+                bone.layers = layers
+        #選択をEmptyに
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_pattern(pattern=emptyobj.name, case_sensitive=False, extend=False)
+        #return {'FINISHED'}
+        return {'FINISHED'}
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+#Curveを正確なアーマチュアに変換
+class Curve2AmaFullOperator(bpy.types.Operator):
+    bl_idname = "object.curve2amafull"
+    bl_label = "Curve -> Ama_Full"
+    bl_options = {'REGISTER','UNDO'}
+    bl_description = "Curveを正確なアーマチュアに変換"
+
+    my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
+
+    def execute(self, context):
+        active = bpy.context.scene.objects.active
+        curveList = []
+        amaList = []
+        #meshList = []
+        for i,spline in enumerate(active.data.splines):
+            #スプライン一つ一つにカーブオブジェクトを作る
+            pos = active.location
+            defaultrot = active.rotation_euler
+            bpy.ops.curve.primitive_nurbs_path_add(radius=1, view_align=False,
+                enter_editmode=False, location=pos)
+            #Curveの設定からコピーできるものをコピーする
+            curve = bpy.context.scene.objects.active
+            oldCurve = active
+            #splineを全て消し、既存のものからコピーする
+            curve.data.splines.clear()
+            newSpline = curve.data.splines.new(type='NURBS')
+            newSpline.points.add(len(spline.points)-1)
+            for point,newPoint in zip(spline.points,newSpline.points):
+                newPoint.co = point.co
+                newPoint.radius = point.radius
+                newPoint.tilt = point.tilt
+                newPoint.weight_softbody = point.weight_softbody
+            newSpline.use_smooth = spline.use_smooth
+            newSpline.use_endpoint_u = spline.use_endpoint_u
+            newSpline.use_bezier_u = spline.use_bezier_u
+            newSpline.id_data.bevel_object = spline.id_data.bevel_object
+            newSpline.id_data.taper_object = spline.id_data.taper_object
+            newSpline.id_data.use_fill_caps = False
+            newSpline.id_data.resolution_u = spline.id_data.resolution_u
+            newSpline.id_data.render_resolution_u = spline.id_data.render_resolution_u
+            newSpline.order_u = spline.order_u
+            newSpline.resolution_u = spline.resolution_u
+            curve.data.twist_mode = oldCurve.data.twist_mode
+            if newSpline.id_data.bevel_object == None:
+                newSpline.id_data.bevel_depth = spline.id_data.bevel_depth
+                newSpline.id_data.bevel_resolution = spline.id_data.bevel_resolution
+            #ソフトボディを設定
+            if oldCurve.soft_body != None:
+                bpy.ops.object.modifier_add(type='SOFT_BODY')
+                curve.soft_body.mass = oldCurve.soft_body.mass
+                curve.soft_body.goal_friction = oldCurve.soft_body.goal_friction
+                curve.soft_body.friction = oldCurve.soft_body.friction
+                curve.soft_body.speed = oldCurve.soft_body.speed
+                curve.soft_body.goal_default = oldCurve.soft_body.goal_default
+                curve.soft_body.goal_max = oldCurve.soft_body.goal_max
+                curve.soft_body.goal_min = oldCurve.soft_body.goal_min
+                curve.soft_body.goal_spring = oldCurve.soft_body.goal_spring
+            #アーマチュア制作用の基準カーブを作る
+            bpy.context.scene.objects.active = curve
+            bpy.ops.object.duplicate()
+            stdCurve = bpy.context.scene.objects.active
+            stdCurve.name = "stdCurve"
+            stdCurve.data.bevel_depth = 0
+            stdCurve.data.extrude = 0
+            stdCurve.data.bevel_object = None
+            bpy.ops.object.convert(target='MESH', keep_original=False)
+            stdCurveObj = bpy.context.scene.objects.active
+            print("koko20",stdCurveObj)
+            #アーマチュアを作る
+            bpy.ops.object.armature_add(location=pos,enter_editmode=False)
+            activeAma = bpy.context.scene.objects.active
+            bpy.ops.object.editmode_toggle()
+            bpy.ops.armature.select_all(action='SELECT')
+            bpy.ops.armature.delete()
+            bpy.ops.armature.bone_primitive_add()
+            print("koko21 ",stdCurveObj.data.vertices[0].co)
+            
+            activeAma.data.edit_bones[0].head = [stdCurveObj.data.vertices[0].co[0],
+                                                    stdCurveObj.data.vertices[0].co[1],
+                                                    stdCurveObj.data.vertices[0].co[2]]
+            activeAma.data.edit_bones[0].name = self.my_boneName + str(i)
+            print("koko4",len(newSpline.points))
+            if len(stdCurveObj.data.vertices) >= 3:
+                for i,newPoint in enumerate(stdCurveObj.data.vertices[1:-1]):
+                    print("koko2",newPoint.co)
+                    rootBoneName = activeAma.data.edit_bones[0].name
+                    newBone = activeAma.data.edit_bones.new(rootBoneName)
+                    print("koko3",i,newBone)
+                    newBone.parent = activeAma.data.edit_bones[i]
+                    newBone.use_connect = True
+                    newBone.head = [newPoint.co[0],
+                                    newPoint.co[1],
+                                    newPoint.co[2]]
+            else:
+                newBone = activeAma.data.edit_bones[0]
+            lastBone = newBone
+            lastBone.tail = [stdCurveObj.data.vertices[-1].co[0],
+                            stdCurveObj.data.vertices[-1].co[1],
+                            stdCurveObj.data.vertices[-1].co[2]]
+            activeAma.data.draw_type = "STICK"
+            #元のカーブは多角形にしてBevelやテイパーやメッシュを外してを設定して、物理として使う
+            bpy.ops.object.editmode_toggle()
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.context.scene.objects.active = curve
+            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+            bebelObj = curve.data.bevel_object
+            curve.data.bevel_object = None
+            curve.data.taper_object = None
+            curve.data.bevel_depth = 0
+            curve.data.bevel_resolution = 0
+            #newSpline.type = curve.data.spline[0].type
+            #アーマチュアにスプラインIKをセット
+            if len(activeAma.pose.bones) >= 1:
+                print("koko7",activeAma.pose.bones[-1].constraints)
+                spIK = activeAma.pose.bones[-1].constraints.new("SPLINE_IK")
+                spIK.target = curve
+                spIK.chain_count = len(activeAma.data.bones)
+                spIK.use_chain_offset = False
+                spIK.use_y_stretch = True
+                spIK.use_curve_radius = False
+                activeAma.pose.bones[-1]["spIKName"] = curve.name
+            curve.data.resolution_u = 64
+            #シェイプキーを２つ追加し、一つをBasis、一つをKey1にする
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.context.scene.objects.active = curve
+            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+            bpy.ops.object.shape_key_add(from_mix=False)
+            bpy.ops.object.shape_key_add(from_mix=False)
+            curve.data.shape_keys.key_blocks[1].value = 1
+            bpy.context.object.active_shape_key_index = 1
+            print("koko13",curve.data.shape_keys)
+            #Curveをレントゲンにして透けて見えるように
+            curve.show_x_ray = True
+            #Curveとアーマチュアとメッシュは後でまとめるのでリストにする
+            curveList.append(curve)
+            amaList.append(activeAma)
+            #基準カーブ消去
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.context.scene.objects.active = stdCurveObj
+            bpy.ops.object.select_pattern(pattern=stdCurveObj.name, case_sensitive=False, extend=False)
+            bpy.ops.object.delete(use_global=False)
+        #Curveの親用のEmptyを作る
+        bpy.ops.object.empty_add(type='PLAIN_AXES', view_align=False, location=active.location)
+        emptyobj = bpy.context.scene.objects.active
+        emptyobj.name = self.my_boneName + "Emp"
+        #アーマチュアの親オブジェクトを作る
+        bpy.ops.object.armature_add(location=active.location,enter_editmode=False)
+        pama = bpy.context.scene.objects.active
+        pama.data.bones[0].use_deform = False
+        #Curveの親を設定
+        for c in curveList:
+            bpy.ops.object.select_all(action='DESELECT')
+            bpy.ops.object.select_pattern(pattern=c.name, case_sensitive=False, extend=False)
+            bpy.ops.object.select_pattern(pattern=emptyobj.name, case_sensitive=False, extend=True)
+            bpy.context.scene.objects.active = emptyobj
+            bpy.ops.object.parent_set(type='OBJECT', xmirror=False, keep_transform=True)
+        #アーマチュアを合成
+        bpy.ops.object.select_all(action='DESELECT')
+        for ama in amaList:
+            bpy.ops.object.select_pattern(pattern=ama.name, case_sensitive=False, extend=True)
+        bpy.ops.object.select_pattern(pattern=pama.name, case_sensitive=False, extend=True)
+        bpy.context.scene.objects.active = pama
+        pama.data.draw_type = "STICK"
+        bpy.ops.object.join()
+        pama = bpy.context.scene.objects.active
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_pattern(pattern=pama.name, case_sensitive=False, extend=False)
+        bpy.ops.object.select_pattern(pattern=emptyobj.name, case_sensitive=False, extend=True)
+        bpy.context.scene.objects.active = emptyobj
+        bpy.ops.object.parent_set(type='OBJECT', xmirror=False, keep_transform=True)
+        pama.name = self.my_boneName
+        #親エンプティの回転を元のCurveと同じにする
+        emptyobj.rotation_euler = defaultrot
+        #アーマチュアのデータを随時更新に変更
+        pama.use_extra_recalc_data = True
+        #このアーマチュアの名前のボーングループをセット
+        boneGroups = pama.pose.bone_groups.new(self.my_boneName)
+        print("koko14",boneGroups)
+        for bone in pama.pose.bones:
+            bone.bone_group = boneGroups
+        layers=(False, False,
+             False, False, False, False, False, False,
+             False, False, False, False, False, False,
+             False, False, False, False, False, False,
+             False, False, False, True, False, False,
+             False, False, False, False, False, False)
+        for i,bone in enumerate(pama.data.bones):
+            if i != 0:
+                bone.layers = layers
+        #選択をEmptyに
+        bpy.ops.object.select_all(action='DESELECT')
+        bpy.ops.object.select_pattern(pattern=emptyobj.name, case_sensitive=False, extend=False)
+        return {'FINISHED'}
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
 #全てのボーンのスプラインIKのミュートを外す
 class ViewSpIKOperator(bpy.types.Operator):
 	bl_idname = "object.viewspik"
@@ -727,6 +1160,9 @@ class AnimeHairPanel(bpy.types.Panel):
         col.label(text="Convert:")
         col.operator("object.hair2mesh")
         col.operator("object.curve2ama")
+        col.operator("object.hair2meshfull")
+        col.operator("object.curve2amafull")
+
 
         col.label(text="all of Spline IK:")
         row = col.row(align=True)
@@ -736,8 +1172,12 @@ class AnimeHairPanel(bpy.types.Panel):
 def register():# 登録
     bpy.utils.register_class(AnimeHairOperator)
     bpy.utils.register_class(Radius2weight)
+
     bpy.utils.register_class(Hair2MeshOperator)
     bpy.utils.register_class(Curve2AmaOperator)
+    bpy.utils.register_class(Hair2MeshFullOperator)
+    bpy.utils.register_class(Curve2AmaFullOperator)
+
     bpy.utils.register_class(AnimeHairPanel)
     bpy.utils.register_class(ViewSpIKOperator)
     bpy.utils.register_class(HiddenSpIKOperator)
@@ -745,8 +1185,12 @@ def register():# 登録
 def unregister():# 解除
     bpy.utils.unregister_class(AnimeHairOperator)
     bpy.utils.unregister_class(Radius2weight)
+
     bpy.utils.unregister_class(Hair2MeshOperator)
     bpy.utils.unregister_class(Curve2AmaOperator)
+    bpy.utils.unregister_class(Hair2MeshFullOperator)
+    bpy.utils.unregister_class(Curve2AmaFullOperator)
+
     bpy.utils.unregister_class(AnimeHairPanel)
     bpy.utils.unregister_class(ViewSpIKOperator)
     bpy.utils.unregister_class(HiddenSpIKOperator)
