@@ -5,7 +5,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 6, 1),
+    "version": (0, 6, 2),
     "blender": (2, 7, 2),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -724,6 +724,11 @@ class Hair2MeshFullOperator(bpy.types.Operator):
             if newSpline.id_data.bevel_object == None:
                 newSpline.id_data.bevel_depth = spline.id_data.bevel_depth
                 newSpline.id_data.bevel_resolution = spline.id_data.bevel_resolution
+                curve.data.fill_mode = oldCurve.data.fill_mode
+                curve.data.offset = oldCurve.data.offset
+                curve.data.extrude = oldCurve.data.extrude
+                curve.data.bevel_depth = oldCurve.data.bevel_depth
+                curve.data.bevel_resolution = oldCurve.data.bevel_resolution
             #ソフトボディを設定
             if oldCurve.soft_body != None:
                 bpy.ops.object.modifier_add(type='SOFT_BODY')
