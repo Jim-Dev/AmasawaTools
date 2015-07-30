@@ -5,7 +5,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 6, 2),
+    "version": (0, 6, 4),
     "blender": (2, 7, 2),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -252,12 +252,17 @@ class Radius2weight(bpy.types.Operator):
     bl_label = "Radius -> SoftBody_Weight"
     bl_options = {'REGISTER','UNDO'}
     bl_description = "カーブの全制御点の半径の値をソフトボディウェイトにコピー"
+
+    my_float_max_radius = bpy.props.FloatProperty(name="Threshold",default=1.0,min=0.0)
+
     def execute(self, context):
-    	active = bpy.context.scene.objects.active
-    	for spline in active.data.splines:
-    		for point in spline.points:
-    			point.weight_softbody = point.radius
-    	return {'FINISHED'}
+        active = bpy.context.scene.objects.active
+        for spline in active.data.splines:
+            for point in spline.points:
+                #しきい値以下だったらコピー
+                if self.my_float_max_radius >= point.radius:
+                    point.weight_softbody = point.radius
+        return {'FINISHED'}
 
 #Curveをアーマチュア付きメッシュに変換
 class Hair2MeshOperator(bpy.types.Operator):
@@ -721,6 +726,8 @@ class Hair2MeshFullOperator(bpy.types.Operator):
             newSpline.order_u = spline.order_u
             newSpline.resolution_u = spline.resolution_u
             curve.data.twist_mode = oldCurve.data.twist_mode
+            curve.data.use_auto_texspace = oldCurve.data.use_auto_texspace
+            curve.data.use_uv_as_generated = oldCurve.data.use_uv_as_generated
             if newSpline.id_data.bevel_object == None:
                 newSpline.id_data.bevel_depth = spline.id_data.bevel_depth
                 newSpline.id_data.bevel_resolution = spline.id_data.bevel_resolution
