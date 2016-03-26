@@ -1,12 +1,14 @@
 ﻿import bpy
 import math 
+import bmesh
+import numpy as np
 
 bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 6, 4),
-    "blender": (2, 7, 2),
+    "version": (0, 7, 4),
+    "blender": (2, 7, 6),
     "location": "View3D > Toolbar",
     "warning": "",
     "wiki_url": "",
@@ -1127,7 +1129,7 @@ class ViewSpIKOperator(bpy.types.Operator):
 	bl_idname = "object.viewspik"
 	bl_label = "ViewSPIK"
 	bl_options = {'REGISTER','UNDO'}
-	bl_description = "全てのボーンのスプラインIKのミュートを外す"
+	bl_description = "全てのボーンに付いているスプラインIKからミュートを外す"
 	def execute(self, context):
 		ama = bpy.context.scene.objects.active
 		print("koko1",ama)
@@ -1147,7 +1149,7 @@ class HiddenSpIKOperator(bpy.types.Operator):
 	bl_idname = "object.hiddenspik"
 	bl_label = "MuteSPIK"
 	bl_options = {'REGISTER','UNDO'}
-	bl_description = "全てのボーンのスプラインIKをミュート"
+	bl_description = "全てのボーンに付いているスプラインIKをミュート"
 	def execute(self, context):
 		ama = bpy.context.scene.objects.active
 		print("koko1",ama)
@@ -1161,6 +1163,138 @@ class HiddenSpIKOperator(bpy.types.Operator):
 		bpy.ops.object.editmode_toggle()
 		bpy.ops.object.editmode_toggle()
 		return {'FINISHED'}
+
+#すべてのボーンのコンストレントのミュートを外す
+class ViewBoneConstOperator(bpy.types.Operator):
+    bl_idname = "object.viewboneconst"
+    bl_label = "ViewSPIK"
+    bl_options = {'REGISTER','UNDO'}
+    bl_description = "全てのボーンコンストレイントに付いているミュートを外す"
+    def execute(self, context):
+        ama = bpy.context.scene.objects.active
+        print("koko1",ama)
+        for bone in ama.pose.bones:
+            print("koko2",bone)
+            if len(bone.constraints) >= 1:
+                for con in bone.constraints:
+                    print("koko3",con)
+                    con.mute = False
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.editmode_toggle()
+        return {'FINISHED'}
+#すべてのボーンのコンストレントのミュートをミュート
+class HiddenBoneConstOperator(bpy.types.Operator):
+    bl_idname = "object.hidenboneconst"
+    bl_label = "ViewSPIK"
+    bl_options = {'REGISTER','UNDO'}
+    bl_description = "全てのボーンコンストレイントをミュート"
+    def execute(self, context):
+        ama = bpy.context.scene.objects.active
+        print("koko1",ama)
+        for bone in ama.pose.bones:
+            print("koko2",bone)
+            if len(bone.constraints) >= 1:
+                for con in bone.constraints:
+                    print("koko3",con)
+                    con.mute = True
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.editmode_toggle()
+        return {'FINISHED'} 
+       
+#おっぱい作成機能
+class MakePIOperator(bpy.types.Operator):
+    bl_idname = "object.make_pi"
+    bl_label = "Make PI"
+    #bl_options = {'REGISTER','UNDO'}
+    bl_description = "選択中の頂点を膨らませる"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_float_emp_normal_value = bpy.props.FloatProperty(name="normal Value",default=0.0,step=0.01)
+    my_float_normal_mix = bpy.props.FloatProperty(name="mix Value",default=1.0,max=1.0,min=0.0,step=0.01)
+    my_float_normal_disp = bpy.props.FloatProperty(name="Disp Value",default=0.0,max=1.0,min=0.0,step=0.01)
+    
+    def execute(self, context):
+        emp_normal_value = self.my_float_emp_normal_value
+        normal_mix = self.my_float_normal_mix
+        normal_disp = self.my_float_normal_disp
+        
+        obj = bpy.context.edit_object
+        me = obj.data
+        bm = bmesh.from_edit_mesh(me)
+        
+        obj.data.use_auto_smooth = True
+        
+        #select vertex list
+        sel_verts = [v for v in bm.verts if v.select]
+        
+        # average normal and vector
+        ave_normal = [0,0,0]
+        ave_co = [0,0,0]
+        for v in sel_verts :
+            normal_local = v.normal.to_4d()
+            normal_local.w = 0
+            world_n = (obj.matrix_world * normal_local).to_3d()
+            ave_normal[0] += world_n[0]
+            ave_normal[1] += world_n[1]
+            ave_normal[2] += world_n[2]
+            
+            world_v = obj.matrix_world * v.co
+            ave_co[0] += world_v[0]
+            ave_co[1] += world_v[1]
+            ave_co[2] += world_v[2]
+            
+        print(ave_normal,len(sel_verts))
+        for i,a in enumerate(ave_normal):
+            ave_normal[i] /= len(sel_verts)
+        for i,a in enumerate(ave_co):
+            ave_co[i] /= len(sel_verts)
+        
+        #make average empty
+        a = np.array(ave_co)# ベクトルaの生成
+        b = np.array(ave_normal)# ベクトルbの生成
+        c = np.array(obj.location)
+        an_co = a +(b * emp_normal_value) # ベクトルa,b,cの和
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.empty_add(type='PLAIN_AXES', radius=1, view_align=False, location=an_co, layers=obj.layers)
+        empty_obj = bpy.context.active_object
+        
+        #make vertex group
+        bpy.context.scene.objects.active = obj
+        bpy.ops.object.vertex_group_add()
+        vg = bpy.context.active_object.vertex_groups[-1]
+        vg.name = "PI"
+        bpy.ops.object.editmode_toggle()
+        bpy.context.scene.tool_settings.vertex_group_weight = 1.0
+        bpy.ops.object.vertex_group_assign()
+        
+        #make NormalEdit
+        bpy.context.scene.objects.active = obj
+        bpy.ops.object.modifier_add(type='NORMAL_EDIT')
+        normal_edit = obj.modifiers[-1]
+        normal_edit.mix_factor = normal_mix
+        normal_edit.target = empty_obj
+        normal_edit.vertex_group = vg.name
+        
+        #make disp
+        if normal_disp > 0.0:
+            bpy.ops.object.modifier_add(type='DISPLACE')
+            disp = obj.modifiers[-1]
+            bpy.context.object.modifiers[disp.name].direction = 'CUSTOM_NORMAL'
+            bpy.context.object.modifiers[disp.name].vertex_group = vg.name
+            bpy.context.object.modifiers[disp.name].strength = normal_disp
+            bpy.ops.object.modifier_move_up(modifier=disp.name)
+            
+        bpy.ops.object.editmode_toggle()
+        return {'FINISHED'}
+        
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+        
+def menu_draw( self, context ): 
+    self.layout.operator_context = 'INVOKE_REGION_WIN' 
+    self.layout.operator( MakePIOperator.bl_idname, "make PI" ) 
 
 #Menu in tools region
 class AnimeHairPanel(bpy.types.Panel):
@@ -1188,6 +1322,10 @@ class AnimeHairPanel(bpy.types.Panel):
         row = col.row(align=True)
         row.operator("object.viewspik",text="View")
         row.operator("object.hiddenspik",text="Mute")
+        col.label(text="all of Bone constraints:")
+        row = col.row(align=True)
+        row.operator("object.viewboneconst",text="View")
+        row.operator("object.hidenboneconst",text="Mute")
   
 def register():# 登録
     bpy.utils.register_class(AnimeHairOperator)
@@ -1201,6 +1339,12 @@ def register():# 登録
     bpy.utils.register_class(AnimeHairPanel)
     bpy.utils.register_class(ViewSpIKOperator)
     bpy.utils.register_class(HiddenSpIKOperator)
+
+    bpy.utils.register_class(ViewBoneConstOperator)
+    bpy.utils.register_class(HiddenBoneConstOperator)
+    
+    bpy.utils.register_class( MakePIOperator )
+    bpy.types.VIEW3D_MT_edit_mesh_specials.append( menu_draw )
     
 def unregister():# 解除
     bpy.utils.unregister_class(AnimeHairOperator)
@@ -1214,6 +1358,12 @@ def unregister():# 解除
     bpy.utils.unregister_class(AnimeHairPanel)
     bpy.utils.unregister_class(ViewSpIKOperator)
     bpy.utils.unregister_class(HiddenSpIKOperator)
+
+    bpy.utils.unregister_class(ViewBoneConstOperator)
+    bpy.utils.unregister_class(HiddenBoneConstOperator)
+    
+    bpy.utils.unregister_class( MakePIOperator )
+    bpy.types.VIEW3D_MT_edit_mesh_specials.remove( menu_draw )
   
 #入力
 #bpy.ops.object.animehair('INVOKE_DEFAULT')
