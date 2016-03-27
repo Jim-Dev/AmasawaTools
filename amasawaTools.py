@@ -7,8 +7,8 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 7, 4),
-    "blender": (2, 7, 6),
+    "version": (0, 8, 0),
+    "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
     "wiki_url": "",
@@ -274,6 +274,7 @@ class Hair2MeshOperator(bpy.types.Operator):
     bl_description = "Curveをアーマチュア付きメッシュに変換"
 
     my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
+    my_ystretch = bpy.props.BoolProperty(name="Y stretch")
 
     def execute(self, context):
         active = bpy.context.scene.objects.active
@@ -400,7 +401,7 @@ class Hair2MeshOperator(bpy.types.Operator):
                 spIK.target = curve
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
-                spIK.use_y_stretch = True
+                spIK.use_y_stretch = self.my_ystretch
                 spIK.use_curve_radius = False
             activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
@@ -473,6 +474,8 @@ class Hair2MeshOperator(bpy.types.Operator):
             bpy.ops.object.join()
             activeMesh = bpy.context.scene.objects.active
             activeMesh.modifiers["Armature"].object = pama
+            #メッシュを選択不可能オブジェクトにする
+            activeMesh.hide_select = True
         #親エンプティの回転を元のCurveと同じにする
         emptyobj.rotation_euler = defaultrot
         #アーマチュアのデータを随時更新に変更
@@ -507,6 +510,7 @@ class Curve2AmaOperator(bpy.types.Operator):
     bl_description = "Curveをアーマチュアに変換"
 
     my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
+    my_ystretch = bpy.props.BoolProperty(name="Y stretch")
 
     def execute(self, context):
         active = bpy.context.scene.objects.active
@@ -608,7 +612,7 @@ class Curve2AmaOperator(bpy.types.Operator):
                 spIK.target = curve
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
-                spIK.use_y_stretch = True
+                spIK.use_y_stretch = self.my_ystretch
                 spIK.use_curve_radius = False
                 activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
@@ -690,6 +694,7 @@ class Hair2MeshFullOperator(bpy.types.Operator):
     bl_description = "Curveを正確なアーマチュア付きメッシュに変換"
 
     my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
+    my_ystretch = bpy.props.BoolProperty(name="Y stretch")
 
     def execute(self, context):
         active = bpy.context.scene.objects.active
@@ -822,7 +827,7 @@ class Hair2MeshFullOperator(bpy.types.Operator):
                 spIK.target = curve
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
-                spIK.use_y_stretch = True
+                spIK.use_y_stretch = self.my_ystretch
                 spIK.use_curve_radius = False
                 activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
@@ -899,6 +904,8 @@ class Hair2MeshFullOperator(bpy.types.Operator):
             bpy.ops.object.join()
             activeMesh = bpy.context.scene.objects.active
             activeMesh.modifiers["Armature"].object = pama
+            #メッシュを選択不可能オブジェクトにする
+            activeMesh.hide_select = True
         #親エンプティの回転を元のCurveと同じにする
         emptyobj.rotation_euler = defaultrot
         #アーマチュアのデータを随時更新に変更
@@ -934,6 +941,7 @@ class Curve2AmaFullOperator(bpy.types.Operator):
     bl_description = "Curveを正確なアーマチュアに変換"
 
     my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
+    my_ystretch = bpy.props.BoolProperty(name="Y stretch")
 
     def execute(self, context):
         active = bpy.context.scene.objects.active
@@ -1045,7 +1053,7 @@ class Curve2AmaFullOperator(bpy.types.Operator):
                 spIK.target = curve
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
-                spIK.use_y_stretch = True
+                spIK.use_y_stretch = self.my_ystretch
                 spIK.use_curve_radius = False
                 activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
@@ -1292,6 +1300,114 @@ class MakePIOperator(bpy.types.Operator):
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
         
+#グリースペンシルをラインに変換
+class Gp2LineOperator(bpy.types.Operator):
+    bl_idname = "object.gp2line"
+    bl_label = "greasePencil -> Line"
+    bl_options = {'REGISTER','UNDO'}
+    bl_description = "選択中のグリースペンシルをカーブを使ったラインに変換(要:Simplify curvesアドオン)"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    #設定
+    my_thick = bpy.props.FloatProperty(name="line thick",default=0.02,min=0.00)
+    my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
+    my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
+    my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
+    my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    
+    def execute(self, context):
+        active_obj = bpy.context.scene.objects.active
+
+        #グリースペンシルの頂点位置を取得
+        #選択されたグリースペンシルがシーンかオブジェクトを判断
+        gp_source = bpy.context.scene.tool_settings.grease_pencil_source
+        if gp_source == "SCENE":
+            active_gp = bpy.context.scene.grease_pencil.layers.active
+        else:
+            active_gp = bpy.context.object.grease_pencil.layers.active
+
+        if active_gp.active_frame != None:
+            #空のカーブを作成
+            bpy.ops.curve.primitive_nurbs_path_add()
+            curve = bpy.context.active_object
+            bpy.ops.object.location_clear()
+            #頂点をすべて消す
+            curve.data.splines.clear()
+            bpy.context.scene.objects.active = active_obj
+            #位置を取得
+            for i, stroke in enumerate(active_gp.active_frame.strokes):
+                #新しいスプラインを追加
+                newSpline = curve.data.splines.new(type='NURBS')
+                newSpline.points.add(len(stroke.points)-1)
+                for sPoint,newPoint in zip(stroke.points,newSpline.points):
+                    newPoint.co = [sPoint.co[0],sPoint.co[1],sPoint.co[2],1.0]
+            #原点を中心に移動
+            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
+            #Curvesをシンプル化
+            bpy.context.scene.objects.active = curve
+            bpy.ops.curve.simplify(output='NURBS', error=self.my_simple_err, degreeOut=self.my_digout, keepShort=True)
+            curve2 = bpy.context.scene.objects.active
+            #シンプルカーブの設定を変更
+            curve2.data.dimensions = '3D'
+            curve2.data.fill_mode = 'FULL'
+            curve2.data.bevel_depth = self.my_thick
+            for spline in curve2.data.splines:
+                spline.use_endpoint_u = True
+            curve2.data.resolution_u = self.my_reso
+            curve2.data.bevel_resolution = 1
+            #irinuki
+            if self.my_irinuki:
+                for spline in curve2.data.splines:
+                    if len(spline.points) > 2:
+                        spline.points[0].radius = 0.0
+                        spline.points[-1].radius = 0.0
+
+            #元のカーブを削除
+            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+            bpy.ops.object.delete()
+            
+            bpy.ops.object.select_pattern(pattern=curve2.name, case_sensitive=False, extend=False)
+            
+            return {'FINISHED'} 
+        
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+        
+#グリースペンシルを髪の毛に変換
+class Gp2AnimehairOperator(bpy.types.Operator):
+    bl_idname = "object.gp2animehair"
+    bl_label = "greasePencil -> AnimeHair"
+    bl_options = {'REGISTER','UNDO'}
+    bl_description = "選択中のグリースペンシルを髪の毛に変換(要:Simplify curvesアドオン)"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    #グリースペンシル用の設定
+    my_irinuki_2 = bpy.props.BoolProperty(default=False,name="IritoNuki")
+    my_simple_err_2 = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
+    my_digout_2 = bpy.props.IntProperty(default=0,name="digout") #次数
+    my_reso_2 = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    #アニメヘアー用の設定
+    my_int_bevelType_2 = bpy.props.IntProperty(name="BevelType",min=0,max=13)
+    my_int_taparType_2 = bpy.props.IntProperty(name="TaperType",min=0,max=7)
+    my_float_x_2 = bpy.props.FloatProperty(name="X",default=1.0,min=0.0)
+    my_float_y_2 = bpy.props.FloatProperty(name="Y",default=1.0,min=0.0)
+    my_float_weight_2 = bpy.props.FloatProperty(name="SoftBody Goal",default=0.3,min=0.0,max=1.0)
+    my_float_mass_2 = bpy.props.FloatProperty(name="SoftBody Mass",default=0.3,min=0.0,)
+    my_float_goal_friction_2 = bpy.props.FloatProperty(name="SoftBody Friction",default=5.0,min=0.0)
+    
+    
+    def execute(self, context):
+        bpy.ops.object.gp2line(my_irinuki=self.my_irinuki_2, my_simple_err=self.my_simple_err_2, my_digout=self.my_digout_2, my_reso=self.my_reso_2)
+        bpy.ops.object.animehair(my_int_bevelType=self.my_int_bevelType_2, my_int_taparType=self.my_int_taparType_2,\
+         my_float_x=self.my_float_x_2, my_float_y=self.my_float_y_2, my_float_weight=self.my_float_weight_2, my_float_mass=self.my_float_mass_2, my_float_goal_friction=self.my_float_goal_friction_2)
+        return {'FINISHED'}
+        
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+        
 def menu_draw( self, context ): 
     self.layout.operator_context = 'INVOKE_REGION_WIN' 
     self.layout.operator( MakePIOperator.bl_idname, "make PI" ) 
@@ -1316,7 +1432,11 @@ class AnimeHairPanel(bpy.types.Panel):
         col.operator("object.curve2ama")
         col.operator("object.hair2meshfull")
         col.operator("object.curve2amafull")
-
+        
+        col = self.layout.column(align=True)
+        col.label(text="GreasePencil:")
+        col.operator("object.gp2line")
+        col.operator("object.gp2animehair")
 
         col.label(text="all of Spline IK:")
         row = col.row(align=True)
@@ -1344,6 +1464,9 @@ def register():# 登録
     bpy.utils.register_class(HiddenBoneConstOperator)
     
     bpy.utils.register_class( MakePIOperator )
+    bpy.utils.register_class( Gp2LineOperator )
+    bpy.utils.register_class( Gp2AnimehairOperator )
+    
     bpy.types.VIEW3D_MT_edit_mesh_specials.append( menu_draw )
     
 def unregister():# 解除
@@ -1363,6 +1486,9 @@ def unregister():# 解除
     bpy.utils.unregister_class(HiddenBoneConstOperator)
     
     bpy.utils.unregister_class( MakePIOperator )
+    bpy.utils.unregister_class( Gp2LineOperator )
+    bpy.utils.unregister_class( Gp2AnimehairOperator )
+    
     bpy.types.VIEW3D_MT_edit_mesh_specials.remove( menu_draw )
   
 #入力
