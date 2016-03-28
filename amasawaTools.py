@@ -8,7 +8,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 8, 1),
+    "version": (0, 8, 2),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -73,6 +73,11 @@ class AnimeHairOperator(bpy.types.Operator):
     my_float_weight = bpy.props.FloatProperty(name="SoftBody Goal",default=0.3,min=0.0,max=1.0)
     my_float_mass = bpy.props.FloatProperty(name="SoftBody Mass",default=0.3,min=0.0,)
     my_float_goal_friction = bpy.props.FloatProperty(name="SoftBody Friction",default=5.0,min=0.0)
+    
+    my_simple_flag = bpy.props.BoolProperty(name="simplify Curve")
+    my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
+    my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
+    my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
 
     def execute(self, context):
         #選択オブジェクトを保存
@@ -92,6 +97,19 @@ class AnimeHairOperator(bpy.types.Operator):
         bpy.ops.curve.spline_type_set(type='NURBS') 
         bpy.ops.object.mode_set(mode='OBJECT')
         
+        #指定された場合カーブをシンプル化
+        if self.my_simple_flag:
+            pre_curve = bpy.context.active_object
+            bpy.ops.curve.simplify(output='NURBS', error=self.my_simple_err, degreeOut=self.my_digout, keepShort=True)
+            #シンプルカーブの設定を変更
+            simp_Curve = bpy.context.scene.objects.active
+            simp_Curve.data.dimensions = '3D'
+            simp_Curve.data.resolution_u = self.my_reso
+            #元のカーブを削除
+            bpy.ops.object.select_pattern(pattern=pre_curve.name, case_sensitive=False, extend=False)
+            bpy.ops.object.delete()
+            bpy.ops.object.select_pattern(pattern=simp_Curve.name, case_sensitive=False, extend=False)
+            
         #終点とスムーズを設定
         for spline in bpy.context.scene.objects.active.data.splines:
             spline.use_endpoint_u = True #終点を設定
