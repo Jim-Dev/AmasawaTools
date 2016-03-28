@@ -2,12 +2,13 @@
 import math 
 import bmesh
 import numpy as np
+from math import radians
 
 bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 8, 0),
+    "version": (0, 8, 1),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -1412,6 +1413,76 @@ def menu_draw( self, context ):
     self.layout.operator_context = 'INVOKE_REGION_WIN' 
     self.layout.operator( MakePIOperator.bl_idname, "make PI" ) 
 
+#指定された角度以下に曲がっている辺にラインを描画
+class Crease2LineOperator(bpy.types.Operator):
+    bl_idname = "object.crease2line"
+    bl_label = "Crease -> Line"
+    bl_options = {'REGISTER','UNDO'}
+    bl_description = "指定された角度以下の折り目をラインに変換(要:Simplify curvesアドオン)"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_sharp = bpy.props.FloatProperty(name="angle",default=60.0,description="折り目角度",min=0.0,max=180.0)
+    my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルに(0で無効)",min=0.0,step=1)
+    my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
+    my_thick=bpy.props.FloatProperty(name="line thick",default=0.005,min=0.00)
+    my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
+    
+    def execute(self, context):
+        sharp = radians(self.my_sharp)
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.mesh.select_all(action='DESELECT')
+        bpy.ops.mesh.edges_select_sharp(sharpness=sharp)
+        bpy.ops.mesh.duplicate_move()
+        
+        #何も選択していない場合はエラーなので終わり
+        try:
+            bpy.ops.mesh.separate(type='SELECTED')
+        except:
+            bpy.ops.object.editmode_toggle()
+            return {'FINISHED'}
+        
+        bpy.ops.object.editmode_toggle()
+
+        curve = bpy.context.selected_objects[0]
+
+        bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+        bpy.context.scene.objects.active = curve
+        bpy.ops.object.convert(target='CURVE')
+
+        if self.my_simple_err > 0.0:
+            #Curvesをシンプル化
+            bpy.context.scene.objects.active = curve
+            bpy.ops.curve.simplify(output='NURBS', error=self.my_simple_err, degreeOut=self.my_digout, keepShort=True)
+            #元のカーブを削除
+            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+            bpy.ops.object.delete()
+        curve2 = bpy.context.scene.objects.active
+
+
+        #シンプルカーブの設定を変更
+        curve2.data.dimensions = '3D'
+        curve2.data.fill_mode = 'FULL'
+        curve2.data.bevel_depth = self.my_thick
+        for spline in curve2.data.splines:
+            spline.use_endpoint_u = True
+        curve2.data.resolution_u = self.my_reso
+        curve2.data.bevel_resolution = 1
+        #irinuki
+        if self.my_irinuki:
+            for spline in curve2.data.splines:
+                if len(spline.points) > 2:
+                    spline.points[0].radius = 0.0
+                    spline.points[-1].radius = 0.0
+                    
+        bpy.ops.object.select_pattern(pattern=curve2.name, case_sensitive=False, extend=False)
+        return {'FINISHED'}
+        
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
 #Menu in tools region
 class AnimeHairPanel(bpy.types.Panel):
     bl_label = "Amasawa Tools"
@@ -1425,6 +1496,7 @@ class AnimeHairPanel(bpy.types.Panel):
         hairCol.label(text="Create:")
         hairCol.operator("object.animehair")
         hairCol.operator("object.radiustoweight")
+        hairCol.operator("object.crease2line")
 
         col = self.layout.column(align=True)
         col.label(text="Convert:")
@@ -1466,6 +1538,7 @@ def register():# 登録
     bpy.utils.register_class( MakePIOperator )
     bpy.utils.register_class( Gp2LineOperator )
     bpy.utils.register_class( Gp2AnimehairOperator )
+    bpy.utils.register_class( Crease2LineOperator )
     
     bpy.types.VIEW3D_MT_edit_mesh_specials.append( menu_draw )
     
@@ -1488,6 +1561,7 @@ def unregister():# 解除
     bpy.utils.unregister_class( MakePIOperator )
     bpy.utils.unregister_class( Gp2LineOperator )
     bpy.utils.unregister_class( Gp2AnimehairOperator )
+    bpy.utils.unregister_class( Crease2LineOperator )
     
     bpy.types.VIEW3D_MT_edit_mesh_specials.remove( menu_draw )
   
