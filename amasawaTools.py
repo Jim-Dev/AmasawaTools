@@ -8,7 +8,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 8, 2),
+    "version": (0, 8, 3),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -1363,10 +1363,16 @@ class Gp2LineOperator(bpy.types.Operator):
                     newPoint.co = [sPoint.co[0],sPoint.co[1],sPoint.co[2],1.0]
             #原点を中心に移動
             bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
+            
             #Curvesをシンプル化
             bpy.context.scene.objects.active = curve
             bpy.ops.curve.simplify(output='NURBS', error=self.my_simple_err, degreeOut=self.my_digout, keepShort=True)
+            #元のカーブを削除
+            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+            bpy.ops.object.delete()
+                
             curve2 = bpy.context.scene.objects.active
+            
             #シンプルカーブの設定を変更
             curve2.data.dimensions = '3D'
             curve2.data.fill_mode = 'FULL'
@@ -1382,9 +1388,7 @@ class Gp2LineOperator(bpy.types.Operator):
                         spline.points[0].radius = 0.0
                         spline.points[-1].radius = 0.0
 
-            #元のカーブを削除
-            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
-            bpy.ops.object.delete()
+
             
             bpy.ops.object.select_pattern(pattern=curve2.name, case_sensitive=False, extend=False)
             
@@ -1416,11 +1420,17 @@ class Gp2AnimehairOperator(bpy.types.Operator):
     my_float_mass_2 = bpy.props.FloatProperty(name="SoftBody Mass",default=0.3,min=0.0,)
     my_float_goal_friction_2 = bpy.props.FloatProperty(name="SoftBody Friction",default=5.0,min=0.0)
     
+    my_simple_flag = bpy.props.BoolProperty(name="simplify Curve")
+    my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
+    my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
+    my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    
     
     def execute(self, context):
         bpy.ops.object.gp2line(my_irinuki=self.my_irinuki_2, my_simple_err=self.my_simple_err_2, my_digout=self.my_digout_2, my_reso=self.my_reso_2)
         bpy.ops.object.animehair(my_int_bevelType=self.my_int_bevelType_2, my_int_taparType=self.my_int_taparType_2,\
-         my_float_x=self.my_float_x_2, my_float_y=self.my_float_y_2, my_float_weight=self.my_float_weight_2, my_float_mass=self.my_float_mass_2, my_float_goal_friction=self.my_float_goal_friction_2)
+         my_float_x=self.my_float_x_2, my_float_y=self.my_float_y_2, my_float_weight=self.my_float_weight_2, my_float_mass=self.my_float_mass_2, my_float_goal_friction=self.my_float_goal_friction_2,\
+         my_simple_flag=self.my_simple_flag, my_simple_err=self.my_simple_err, my_digout=self.my_digout, my_reso=self.my_reso)
         return {'FINISHED'}
         
     def invoke(self, context, event):
@@ -1440,31 +1450,45 @@ class Crease2LineOperator(bpy.types.Operator):
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     
+    my_defaultFlag = bpy.props.BoolProperty(default=False,name="Default Select edge",description="デフォルトで選択されている辺を使う")
+    my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
     my_sharp = bpy.props.FloatProperty(name="angle",default=60.0,description="折り目角度",min=0.0,max=180.0)
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルに(0で無効)",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
     my_thick=bpy.props.FloatProperty(name="line thick",default=0.005,min=0.00)
     my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
-    my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
     
     def execute(self, context):
-        sharp = radians(self.my_sharp)
+        #編集モードに以降
         bpy.ops.object.editmode_toggle()
-        bpy.ops.mesh.select_all(action='DESELECT')
-        bpy.ops.mesh.edges_select_sharp(sharpness=sharp)
-        bpy.ops.mesh.duplicate_move()
-        
+        #デフォルトで選択されている辺を使うか使わないか
+        if self.my_defaultFlag == False:
+            #クリースを選択
+            bpy.ops.mesh.select_all(action='DESELECT')
+            sharp = radians(self.my_sharp)
+            bpy.ops.mesh.edges_select_sharp(sharpness=sharp)
+            
         #何も選択していない場合はエラーなので終わり
         try:
             bpy.ops.mesh.separate(type='SELECTED')
         except:
             bpy.ops.object.editmode_toggle()
             return {'FINISHED'}
+            
+        #選択した辺を複製
+        bpy.ops.mesh.duplicate_move(MESH_OT_duplicate={"mode":1}, TRANSFORM_OT_translate={"value":(0, 0, 0), "constraint_axis":(False, False, False),\
+         "constraint_orientation":'GLOBAL', "mirror":False, "proportional":'DISABLED', "proportional_edit_falloff":'SMOOTH', "proportional_size":1,\
+          "snap":False, "snap_target":'CLOSEST', "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0), "gpencil_strokes":False,\
+           "texture_space":False, "remove_on_cancel":False, "release_confirm":False})
+
         
+        #面を選択している場合は除去
+        bpy.ops.mesh.delete(type='ONLY_FACE')
+        
+        #Objectモードへ移行
         bpy.ops.object.editmode_toggle()
-
+        #辺をカーブに変換
         curve = bpy.context.selected_objects[0]
-
         bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
         bpy.context.scene.objects.active = curve
         bpy.ops.object.convert(target='CURVE')
@@ -1477,7 +1501,6 @@ class Crease2LineOperator(bpy.types.Operator):
             bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
             bpy.ops.object.delete()
         curve2 = bpy.context.scene.objects.active
-
 
         #シンプルカーブの設定を変更
         curve2.data.dimensions = '3D'
