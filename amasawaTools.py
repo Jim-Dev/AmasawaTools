@@ -8,7 +8,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 8, 3),
+    "version": (0, 8, 4),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -134,7 +134,6 @@ class AnimeHairOperator(bpy.types.Operator):
         if self.my_int_taparType == 0:
             for spline in bpy.context.active_object.data.splines:
                 spline.points[len(spline.points)-1].radius = 0.0
-            print("0")
         elif self.my_int_taparType == 1:
             for spline in bpy.context.active_object.data.splines:
                 for point in spline.points:
@@ -360,18 +359,14 @@ class Hair2MeshOperator(bpy.types.Operator):
             bpy.ops.armature.select_all(action='SELECT')
             bpy.ops.armature.delete()
             bpy.ops.armature.bone_primitive_add()
-            print(len(activeAma.data.edit_bones))
             activeAma.data.edit_bones[0].head = [newSpline.points[0].co[0],
                                                     newSpline.points[0].co[1],
                                                     newSpline.points[0].co[2]]
             activeAma.data.edit_bones[0].name = self.my_boneName + str(i)
-            print("koko4",len(newSpline.points))
             if len(newSpline.points) >= 3:
                 for i,newPoint in enumerate(newSpline.points[1:-1]):
-                    print("koko2",newPoint.co)
                     rootBoneName = activeAma.data.edit_bones[0].name
                     newBone = activeAma.data.edit_bones.new(rootBoneName)
-                    print("koko3",i,newBone)
                     newBone.parent = activeAma.data.edit_bones[i]
                     newBone.use_connect = True
                     newBone.head = [newPoint.co[0],
@@ -393,12 +388,9 @@ class Hair2MeshOperator(bpy.types.Operator):
             bpy.ops.object.select_all(action='DESELECT')
             bpy.context.scene.objects.active = curve
             bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
-            print("koko5",bpy.context.scene,bpy.context.scene.objects.active,curve.rotation_euler)
             bpy.ops.object.convert(target='MESH', keep_original=True)
             meshobj = bpy.context.scene.objects.active
-            print("koko6",meshobj)
             #マテリアルをコピーする
-            print("koko12",meshobj.data.materials,spline.material_index)
             if len(oldCurve.data.materials) >= 1:
                 material = oldCurve.data.materials[spline.material_index]
                 meshobj.data.materials.append(material) 
@@ -415,7 +407,6 @@ class Hair2MeshOperator(bpy.types.Operator):
             newSpline.type = 'POLY'
             #アーマチュアにスプラインIKをセット
             if len(activeAma.pose.bones) >= 1:
-                print("koko7",activeAma.pose.bones[-1].constraints)
                 spIK = activeAma.pose.bones[-1].constraints.new("SPLINE_IK")
                 spIK.target = curve
                 spIK.chain_count = len(activeAma.data.bones)
@@ -446,14 +437,12 @@ class Hair2MeshOperator(bpy.types.Operator):
             bpy.ops.object.shape_key_add(from_mix=False)
             curve.data.shape_keys.key_blocks[1].value = 1
             bpy.context.object.active_shape_key_index = 1
-            print("koko13",curve.data.shape_keys)
             #Curveをレントゲンにして透けて見えるように
             curve.show_x_ray = True
             #Curveとアーマチュアとメッシュは後でまとめるのでリストにする
             curveList.append(curve)
             amaList.append(activeAma)
             meshList.append(meshobj)
-        print("koko8",curveList,amaList,meshList)
         #Curveの親用のEmptyを作る
         bpy.ops.object.empty_add(type='PLAIN_AXES', view_align=False, location=active.location)
         emptyobj = bpy.context.scene.objects.active
@@ -501,7 +490,6 @@ class Hair2MeshOperator(bpy.types.Operator):
         pama.use_extra_recalc_data = True
         #このアーマチュアの名前のボーングループをセット
         boneGroups = pama.pose.bone_groups.new(self.my_boneName)
-        print("koko14",boneGroups)
         for bone in pama.pose.bones:
             bone.bone_group = boneGroups
         layers=(False, False,
@@ -589,18 +577,14 @@ class Curve2AmaOperator(bpy.types.Operator):
             bpy.ops.armature.select_all(action='SELECT')
             bpy.ops.armature.delete()
             bpy.ops.armature.bone_primitive_add()
-            print(len(activeAma.data.edit_bones))
             activeAma.data.edit_bones[0].head = [newSpline.points[0].co[0],
                                                     newSpline.points[0].co[1],
                                                     newSpline.points[0].co[2]]
             activeAma.data.edit_bones[0].name = self.my_boneName + str(i)
-            print("koko4",len(newSpline.points))
             if len(newSpline.points) >= 3:
                 for i,newPoint in enumerate(newSpline.points[1:-1]):
-                    print("koko2",newPoint.co)
                     rootBoneName = activeAma.data.edit_bones[0].name
                     newBone = activeAma.data.edit_bones.new(rootBoneName)
-                    print("koko3",i,newBone)
                     newBone.parent = activeAma.data.edit_bones[i]
                     newBone.use_connect = True
                     newBone.head = [newPoint.co[0],
@@ -626,7 +610,6 @@ class Curve2AmaOperator(bpy.types.Operator):
             newSpline.type = 'POLY'
             #アーマチュアにスプラインIKをセット
             if len(activeAma.pose.bones) >= 1:
-                print("koko7",activeAma.pose.bones[-1].constraints)
                 spIK = activeAma.pose.bones[-1].constraints.new("SPLINE_IK")
                 spIK.target = curve
                 spIK.chain_count = len(activeAma.data.bones)
@@ -643,7 +626,6 @@ class Curve2AmaOperator(bpy.types.Operator):
             bpy.ops.object.shape_key_add(from_mix=False)
             curve.data.shape_keys.key_blocks[1].value = 1
             bpy.context.object.active_shape_key_index = 1
-            print("koko13",curve.data.shape_keys)
             #Curveをレントゲンにして透けて見えるように
             curve.show_x_ray = True
             #Curveとアーマチュアとメッシュは後でまとめるのでリストにする
@@ -685,7 +667,6 @@ class Curve2AmaOperator(bpy.types.Operator):
         pama.use_extra_recalc_data = True
         #このアーマチュアの名前のボーングループをセット
         boneGroups = pama.pose.bone_groups.new(self.my_boneName)
-        print("koko14",boneGroups)
         for bone in pama.pose.bones:
             bone.bone_group = boneGroups
         layers=(False, False,
@@ -790,18 +771,14 @@ class Hair2MeshFullOperator(bpy.types.Operator):
             bpy.ops.armature.select_all(action='SELECT')
             bpy.ops.armature.delete()
             bpy.ops.armature.bone_primitive_add()
-            print("koko22",stdCurveObj)
             activeAma.data.edit_bones[0].head = [stdCurveObj.data.vertices[0].co[0],
                                                     stdCurveObj.data.vertices[0].co[1],
                                                     stdCurveObj.data.vertices[0].co[2]]
             activeAma.data.edit_bones[0].name = self.my_boneName + str(i)
-            print("koko4",len(newSpline.points))
             if len(stdCurveObj.data.vertices) >= 3:
                 for i,newPoint in enumerate(stdCurveObj.data.vertices[1:-1]):
-                    print("koko2",newPoint.co)
                     rootBoneName = activeAma.data.edit_bones[0].name
                     newBone = activeAma.data.edit_bones.new(rootBoneName)
-                    print("koko3",i,newBone)
                     newBone.parent = activeAma.data.edit_bones[i]
                     newBone.use_connect = True
                     newBone.head = [newPoint.co[0],
@@ -820,12 +797,9 @@ class Hair2MeshFullOperator(bpy.types.Operator):
             bpy.ops.object.select_all(action='DESELECT')
             bpy.context.scene.objects.active = curve
             bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
-            print("koko5",bpy.context.scene,bpy.context.scene.objects.active,curve.rotation_euler)
             bpy.ops.object.convert(target='MESH', keep_original=True)
             meshobj = bpy.context.scene.objects.active
-            print("koko6",meshobj)
             #マテリアルをコピーする
-            print("koko12",meshobj.data.materials,spline.material_index)
             if len(oldCurve.data.materials) >= 1:
                 material = oldCurve.data.materials[spline.material_index]
                 meshobj.data.materials.append(material)
@@ -841,7 +815,6 @@ class Hair2MeshFullOperator(bpy.types.Operator):
             #newSpline.type = curve.data.spline[0].type
             #アーマチュアにスプラインIKをセット
             if len(activeAma.pose.bones) >= 1:
-                print("koko7",activeAma.pose.bones[-1].constraints)
                 spIK = activeAma.pose.bones[-1].constraints.new("SPLINE_IK")
                 spIK.target = curve
                 spIK.chain_count = len(activeAma.data.bones)
@@ -872,7 +845,6 @@ class Hair2MeshFullOperator(bpy.types.Operator):
             bpy.ops.object.shape_key_add(from_mix=False)
             curve.data.shape_keys.key_blocks[1].value = 1
             bpy.context.object.active_shape_key_index = 1
-            print("koko13",curve.data.shape_keys)
             #Curveをレントゲンにして透けて見えるように
             curve.show_x_ray = True
             #Curveとアーマチュアとメッシュは後でまとめるのでリストにする
@@ -931,7 +903,6 @@ class Hair2MeshFullOperator(bpy.types.Operator):
         pama.use_extra_recalc_data = True
         #このアーマチュアの名前のボーングループをセット
         boneGroups = pama.pose.bone_groups.new(self.my_boneName)
-        print("koko14",boneGroups)
         for bone in pama.pose.bones:
             bone.bone_group = boneGroups
         layers=(False, False,
@@ -1035,13 +1006,10 @@ class Curve2AmaFullOperator(bpy.types.Operator):
                                                     stdCurveObj.data.vertices[0].co[1],
                                                     stdCurveObj.data.vertices[0].co[2]]
             activeAma.data.edit_bones[0].name = self.my_boneName + str(i)
-            print("koko4",len(newSpline.points))
             if len(stdCurveObj.data.vertices) >= 3:
                 for i,newPoint in enumerate(stdCurveObj.data.vertices[1:-1]):
-                    print("koko2",newPoint.co)
                     rootBoneName = activeAma.data.edit_bones[0].name
                     newBone = activeAma.data.edit_bones.new(rootBoneName)
-                    print("koko3",i,newBone)
                     newBone.parent = activeAma.data.edit_bones[i]
                     newBone.use_connect = True
                     newBone.head = [newPoint.co[0],
@@ -1067,7 +1035,6 @@ class Curve2AmaFullOperator(bpy.types.Operator):
             #newSpline.type = curve.data.spline[0].type
             #アーマチュアにスプラインIKをセット
             if len(activeAma.pose.bones) >= 1:
-                print("koko7",activeAma.pose.bones[-1].constraints)
                 spIK = activeAma.pose.bones[-1].constraints.new("SPLINE_IK")
                 spIK.target = curve
                 spIK.chain_count = len(activeAma.data.bones)
@@ -1084,7 +1051,6 @@ class Curve2AmaFullOperator(bpy.types.Operator):
             bpy.ops.object.shape_key_add(from_mix=False)
             curve.data.shape_keys.key_blocks[1].value = 1
             bpy.context.object.active_shape_key_index = 1
-            print("koko13",curve.data.shape_keys)
             #Curveをレントゲンにして透けて見えるように
             curve.show_x_ray = True
             #Curveとアーマチュアとメッシュは後でまとめるのでリストにする
@@ -1131,7 +1097,6 @@ class Curve2AmaFullOperator(bpy.types.Operator):
         pama.use_extra_recalc_data = True
         #このアーマチュアの名前のボーングループをセット
         boneGroups = pama.pose.bone_groups.new(self.my_boneName)
-        print("koko14",boneGroups)
         for bone in pama.pose.bones:
             bone.bone_group = boneGroups
         layers=(False, False,
@@ -1159,12 +1124,9 @@ class ViewSpIKOperator(bpy.types.Operator):
 	bl_description = "全てのボーンに付いているスプラインIKからミュートを外す"
 	def execute(self, context):
 		ama = bpy.context.scene.objects.active
-		print("koko1",ama)
 		for bone in ama.pose.bones:
-		    print("koko2",bone)
 		    if len(bone.constraints) >= 1:
 		        for con in bone.constraints:
-		            print("koko3",con)
 		            if con.type == "SPLINE_IK":
 		                con.mute = False
 		bpy.ops.object.editmode_toggle()
@@ -1179,12 +1141,9 @@ class HiddenSpIKOperator(bpy.types.Operator):
 	bl_description = "全てのボーンに付いているスプラインIKをミュート"
 	def execute(self, context):
 		ama = bpy.context.scene.objects.active
-		print("koko1",ama)
 		for bone in ama.pose.bones:
-		    print("koko2",bone)
 		    if len(bone.constraints) >= 1:
 		        for con in bone.constraints:
-		            print("koko3",con)
 		            if con.type == "SPLINE_IK":
 		                con.mute = True
 		bpy.ops.object.editmode_toggle()
@@ -1199,12 +1158,9 @@ class ViewBoneConstOperator(bpy.types.Operator):
     bl_description = "全てのボーンコンストレイントに付いているミュートを外す"
     def execute(self, context):
         ama = bpy.context.scene.objects.active
-        print("koko1",ama)
         for bone in ama.pose.bones:
-            print("koko2",bone)
             if len(bone.constraints) >= 1:
                 for con in bone.constraints:
-                    print("koko3",con)
                     con.mute = False
         bpy.ops.object.editmode_toggle()
         bpy.ops.object.editmode_toggle()
@@ -1217,12 +1173,9 @@ class HiddenBoneConstOperator(bpy.types.Operator):
     bl_description = "全てのボーンコンストレイントをミュート"
     def execute(self, context):
         ama = bpy.context.scene.objects.active
-        print("koko1",ama)
         for bone in ama.pose.bones:
-            print("koko2",bone)
             if len(bone.constraints) >= 1:
                 for con in bone.constraints:
-                    print("koko3",con)
                     con.mute = True
         bpy.ops.object.editmode_toggle()
         bpy.ops.object.editmode_toggle()
@@ -1271,7 +1224,6 @@ class MakePIOperator(bpy.types.Operator):
             ave_co[1] += world_v[1]
             ave_co[2] += world_v[2]
             
-        print(ave_normal,len(sel_verts))
         for i,a in enumerate(ave_normal):
             ave_normal[i] /= len(sel_verts)
         for i,a in enumerate(ave_co):
@@ -1331,6 +1283,7 @@ class Gp2LineOperator(bpy.types.Operator):
     #設定
     my_thick = bpy.props.FloatProperty(name="line thick",default=0.02,min=0.00)
     my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
+    my_loop = bpy.props.BoolProperty(default=False,name="loop")
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
     my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
@@ -1357,28 +1310,34 @@ class Gp2LineOperator(bpy.types.Operator):
             #位置を取得
             for i, stroke in enumerate(active_gp.active_frame.strokes):
                 #新しいスプラインを追加
-                newSpline = curve.data.splines.new(type='NURBS')
+                if self.my_simple_err > 0.0:
+                    newSpline = curve.data.splines.new(type='NURBS')
+                else:
+                    newSpline = curve.data.splines.new(type='POLY')
                 newSpline.points.add(len(stroke.points)-1)
                 for sPoint,newPoint in zip(stroke.points,newSpline.points):
                     newPoint.co = [sPoint.co[0],sPoint.co[1],sPoint.co[2],1.0]
             #原点を中心に移動
             bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
+            curve2 = curve
+            if self.my_simple_err > 0.0:
+                #Curvesをシンプル化
+                bpy.context.scene.objects.active = curve
+                bpy.ops.curve.simplify(output='NURBS', error=self.my_simple_err, degreeOut=self.my_digout, keepShort=True)
+                curve2 = bpy.context.scene.objects.active
+                #元のカーブを削除
+                bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+                bpy.ops.object.delete()
             
-            #Curvesをシンプル化
-            bpy.context.scene.objects.active = curve
-            bpy.ops.curve.simplify(output='NURBS', error=self.my_simple_err, degreeOut=self.my_digout, keepShort=True)
-            #元のカーブを削除
-            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
-            bpy.ops.object.delete()
-                
-            curve2 = bpy.context.scene.objects.active
-            
-            #シンプルカーブの設定を変更
+            #カーブの設定を変更
             curve2.data.dimensions = '3D'
             curve2.data.fill_mode = 'FULL'
             curve2.data.bevel_depth = self.my_thick
             for spline in curve2.data.splines:
                 spline.use_endpoint_u = True
+                #ループ設定
+                if self.my_loop:
+                    spline.use_cyclic_u = True
             curve2.data.resolution_u = self.my_reso
             curve2.data.bevel_resolution = 1
             #irinuki
@@ -1387,12 +1346,45 @@ class Gp2LineOperator(bpy.types.Operator):
                     if len(spline.points) > 2:
                         spline.points[0].radius = 0.0
                         spline.points[-1].radius = 0.0
-
-
-            
+                        
+            bpy.context.scene.objects.active = curve2
             bpy.ops.object.select_pattern(pattern=curve2.name, case_sensitive=False, extend=False)
             
             return {'FINISHED'} 
+        
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+      
+#グリースペンシルをメッシュに変換
+class Gp2MeshOperator(bpy.types.Operator):
+    bl_idname = "object.gp2mesh"
+    bl_label = "greasePencil -> Mesh"
+    bl_options = {'REGISTER','UNDO'}
+    bl_description = "選択中のグリースペンシルをメッシュに変換(要:Simplify curvesアドオン)"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    #設定
+    my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
+    my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
+    my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    
+    def execute(self, context):
+        #グリースペンシルをカーブに変換
+        bpy.ops.object.gp2line(my_thick=0.0,my_irinuki=False,my_loop=True,my_simple_err=self.my_simple_err,my_digout=self.my_digout,my_reso=self.my_reso)
+        #メッシュに変換
+        curve = bpy.context.scene.objects.active
+        bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+        bpy.ops.object.convert(target='MESH')
+        #編集モードに移行
+        bpy.ops.object.editmode_toggle()
+        #メッシュごとに全選択しメッシュを貼る
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.edge_face_add()
+        bpy.ops.object.editmode_toggle()
+        
+        return {'FINISHED'}
         
     def invoke(self, context, event):
         wm = context.window_manager
@@ -1450,7 +1442,8 @@ class Crease2LineOperator(bpy.types.Operator):
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     
-    my_defaultFlag = bpy.props.BoolProperty(default=False,name="Default Select edge",description="デフォルトで選択されている辺を使う")
+    #my_defaultFlag = bpy.props.BoolProperty(default=False,name="Default Select edge",description="デフォルトで選択されている辺を使う")
+    my_defaultFlag = False
     my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
     my_sharp = bpy.props.FloatProperty(name="angle",default=60.0,description="折り目角度",min=0.0,max=180.0)
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルに(0で無効)",min=0.0,step=1)
@@ -1549,6 +1542,7 @@ class AnimeHairPanel(bpy.types.Panel):
         col = self.layout.column(align=True)
         col.label(text="GreasePencil:")
         col.operator("object.gp2line")
+        col.operator("object.gp2mesh")
         col.operator("object.gp2animehair")
 
         col.label(text="all of Spline IK:")
@@ -1580,6 +1574,7 @@ def register():# 登録
     bpy.utils.register_class( Gp2LineOperator )
     bpy.utils.register_class( Gp2AnimehairOperator )
     bpy.utils.register_class( Crease2LineOperator )
+    bpy.utils.register_class( Gp2MeshOperator )
     
     bpy.types.VIEW3D_MT_edit_mesh_specials.append( menu_draw )
     
@@ -1603,6 +1598,7 @@ def unregister():# 解除
     bpy.utils.unregister_class( Gp2LineOperator )
     bpy.utils.unregister_class( Gp2AnimehairOperator )
     bpy.utils.unregister_class( Crease2LineOperator )
+    bpy.utils.unregister_class( Gp2MeshOperator )
     
     bpy.types.VIEW3D_MT_edit_mesh_specials.remove( menu_draw )
   
