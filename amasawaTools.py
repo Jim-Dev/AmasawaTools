@@ -257,6 +257,7 @@ class AnimeHairOperator(bpy.types.Operator):
         bpy.ops.object.modifier_add(type='SOFT_BODY')
         bpy.context.scene.objects.active.soft_body.mass = self.my_float_mass
         bpy.context.scene.objects.active.soft_body.goal_friction = self.my_float_goal_friction
+        bpy.context.scene.objects.active.soft_body.goal_default = 1.0
         softbody = bpy.context.scene.objects.active.modifiers[0]
         for m in bpy.context.scene.objects.active.modifiers:
         	if m.type == 'SOFT_BODY':
