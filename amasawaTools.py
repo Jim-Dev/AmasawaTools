@@ -1447,7 +1447,7 @@ class Crease2LineOperator(bpy.types.Operator):
     my_defaultFlag = False
     my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
     my_sharp = bpy.props.FloatProperty(name="angle",default=60.0,description="折り目角度",min=0.0,max=180.0)
-    my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルに(0で無効)",min=0.0,step=1)
+    my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.0,description="値を上げるほどカーブがシンプルに(0で無効)",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
     my_thick=bpy.props.FloatProperty(name="line thick",default=0.005,min=0.00)
     my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
