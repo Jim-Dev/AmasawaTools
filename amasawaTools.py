@@ -8,7 +8,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 8, 4),
+    "version": (0, 9, 0),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
