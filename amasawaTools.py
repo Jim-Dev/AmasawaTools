@@ -76,8 +76,8 @@ class AnimeHairOperator(bpy.types.Operator):
     
     my_simple_flag = bpy.props.BoolProperty(name="simplify Curve")
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
-    my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
-    my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
+    my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
 
     def execute(self, context):
         #選択オブジェクトを保存
@@ -1286,8 +1286,8 @@ class Gp2LineOperator(bpy.types.Operator):
     my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
     my_loop = bpy.props.BoolProperty(default=False,name="loop")
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
-    my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
-    my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
+    my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
     
     def execute(self, context):
         active_obj = bpy.context.scene.objects.active
@@ -1368,8 +1368,8 @@ class Gp2MeshOperator(bpy.types.Operator):
     
     #設定
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
-    my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
-    my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
+    my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
     
     def execute(self, context):
         #グリースペンシルをカーブに変換
@@ -1402,8 +1402,8 @@ class Gp2AnimehairOperator(bpy.types.Operator):
     #グリースペンシル用の設定
     my_irinuki_2 = bpy.props.BoolProperty(default=False,name="IritoNuki")
     my_simple_err_2 = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
-    my_digout_2 = bpy.props.IntProperty(default=0,name="digout") #次数
-    my_reso_2 = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    my_digout_2 = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
+    my_reso_2 = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
     #アニメヘアー用の設定
     my_int_bevelType_2 = bpy.props.IntProperty(name="BevelType",min=0,max=13)
     my_int_taparType_2 = bpy.props.IntProperty(name="TaperType",min=0,max=7)
@@ -1415,8 +1415,8 @@ class Gp2AnimehairOperator(bpy.types.Operator):
     
     my_simple_flag = bpy.props.BoolProperty(name="simplify Curve")
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
-    my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
-    my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
+    my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
     
     
     def execute(self, context):
@@ -1448,9 +1448,9 @@ class Crease2LineOperator(bpy.types.Operator):
     my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
     my_sharp = bpy.props.FloatProperty(name="angle",default=60.0,description="折り目角度",min=0.0,max=180.0)
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.0,description="値を上げるほどカーブがシンプルに(0で無効)",min=0.0,step=1)
-    my_digout = bpy.props.IntProperty(default=0,name="digout") #次数
+    my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
     my_thick=bpy.props.FloatProperty(name="line thick",default=0.005,min=0.00)
-    my_reso = bpy.props.IntProperty(default=3,name="resolusion") #カーブの解像度
+    my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
     
     def execute(self, context):
         #編集モードに以降
