@@ -8,7 +8,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 9, 0),
+    "version": (0, 9, 1),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -413,7 +413,7 @@ class Hair2MeshOperator(bpy.types.Operator):
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
                 spIK.use_y_stretch = self.my_ystretch
-                spIK.use_curve_radius = False
+                spIK.use_curve_radius = True
             activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
             #重複した頂点を削除
@@ -616,7 +616,7 @@ class Curve2AmaOperator(bpy.types.Operator):
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
                 spIK.use_y_stretch = self.my_ystretch
-                spIK.use_curve_radius = False
+                spIK.use_curve_radius = True
                 activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
             #シェイプキーを２つ追加し、一つをBasis、一つをKey1にする
@@ -821,7 +821,7 @@ class Hair2MeshFullOperator(bpy.types.Operator):
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
                 spIK.use_y_stretch = self.my_ystretch
-                spIK.use_curve_radius = False
+                spIK.use_curve_radius = True
                 activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
             #重複した頂点を削除
@@ -1041,7 +1041,7 @@ class Curve2AmaFullOperator(bpy.types.Operator):
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
                 spIK.use_y_stretch = self.my_ystretch
-                spIK.use_curve_radius = False
+                spIK.use_curve_radius = True
                 activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
             #シェイプキーを２つ追加し、一つをBasis、一つをKey1にする
@@ -1293,7 +1293,7 @@ class Gp2LineOperator(bpy.types.Operator):
         active_obj = bpy.context.scene.objects.active
 
         #グリースペンシルの頂点位置を取得
-        #選択されたグリースペンシルがシーンかオブジェクトを判断
+        #選択されたグリースペンシルがシーンかオブジェクトかを判断
         gp_source = bpy.context.scene.tool_settings.grease_pencil_source
         if gp_source == "SCENE":
             active_gp = bpy.context.scene.grease_pencil.layers.active
