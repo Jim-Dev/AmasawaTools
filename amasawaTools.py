@@ -8,7 +8,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 9, 1),
+    "version": (0, 9, 2),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -1285,6 +1285,7 @@ class Gp2LineOperator(bpy.types.Operator):
     my_thick = bpy.props.FloatProperty(name="line thick",default=0.02,min=0.00)
     my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
     my_loop = bpy.props.BoolProperty(default=False,name="loop")
+    my_strokeLink = bpy.props.BoolProperty(default=False,name="Stroke Link")
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
     my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
@@ -1308,7 +1309,7 @@ class Gp2LineOperator(bpy.types.Operator):
             #頂点をすべて消す
             curve.data.splines.clear()
             bpy.context.scene.objects.active = active_obj
-            #位置を取得
+            #空のカーブにStrokeの位置を入れる    
             for i, stroke in enumerate(active_gp.active_frame.strokes):
                 #新しいスプラインを追加
                 if self.my_simple_err > 0.0:
@@ -1318,7 +1319,39 @@ class Gp2LineOperator(bpy.types.Operator):
                 newSpline.points.add(len(stroke.points)-1)
                 for sPoint,newPoint in zip(stroke.points,newSpline.points):
                     newPoint.co = [sPoint.co[0],sPoint.co[1],sPoint.co[2],1.0]
+            
+            #カーブの各スプラインを接続する
+            if self.my_strokeLink:
+                #空のカーブを作成
+                bpy.ops.curve.primitive_nurbs_path_add()
+                curve3 = bpy.context.active_object
+                bpy.ops.object.location_clear()
+                #頂点をすべて消す
+                curve3.data.splines.clear()
+                #スプラインを一つ作る
+                curvetype = curve.data.splines[0].type
+                newSpline3 = curve3.data.splines.new(type=curvetype)
+                #全頂点数を数える
+                spline_len = 0
+                for spline in curve.data.splines:
+                    spline_len += len(spline.points)
+                for i,c2spline in enumerate(curve.data.splines):
+                    for j,c2point in enumerate(c2spline.points):
+                        #最初の1個だけはaddせずもう出来ているものにコピー
+                        if i==0 and j==0:
+                            newSpline3.points[0].co = c2point.co
+                        else:
+                            newSpline3.points.add(1)
+                            newSpline3.points[-1].co = c2point.co
+                #本のカーブを消して3を入れる
+                bpy.context.scene.objects.active = curve
+                bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+                bpy.ops.object.delete()
+                curve = curve3
+                
             #原点を中心に移動
+            bpy.context.scene.objects.active = curve
+            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
             bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
             curve2 = curve
             if self.my_simple_err > 0.0:
@@ -1327,9 +1360,13 @@ class Gp2LineOperator(bpy.types.Operator):
                 bpy.ops.curve.simplify(output='NURBS', error=self.my_simple_err, degreeOut=self.my_digout, keepShort=True)
                 curve2 = bpy.context.scene.objects.active
                 #元のカーブを削除
+                bpy.context.scene.objects.active = curve
                 bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
                 bpy.ops.object.delete()
-            
+                if self.my_strokeLink:
+                    bpy.context.scene.objects.active = curve3
+                    bpy.ops.object.select_pattern(pattern=curve3.name, case_sensitive=False, extend=False)
+                    bpy.ops.object.delete()
             #カーブの設定を変更
             curve2.data.dimensions = '3D'
             curve2.data.fill_mode = 'FULL'
@@ -1347,7 +1384,7 @@ class Gp2LineOperator(bpy.types.Operator):
                     if len(spline.points) > 2:
                         spline.points[0].radius = 0.0
                         spline.points[-1].radius = 0.0
-                        
+            
             bpy.context.scene.objects.active = curve2
             bpy.ops.object.select_pattern(pattern=curve2.name, case_sensitive=False, extend=False)
             
@@ -1367,13 +1404,14 @@ class Gp2MeshOperator(bpy.types.Operator):
     bl_region_type = "TOOLS"
     
     #設定
+    my_strokeLink = bpy.props.BoolProperty(default=False,description="すべての辺を繋いだメッシュにするか",name="Stroke Link")
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
     my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
     
     def execute(self, context):
         #グリースペンシルをカーブに変換
-        bpy.ops.object.gp2line(my_thick=0.0,my_irinuki=False,my_loop=True,my_simple_err=self.my_simple_err,my_digout=self.my_digout,my_reso=self.my_reso)
+        bpy.ops.object.gp2line(my_thick=0.0,my_irinuki=False,my_loop=True,my_simple_err=self.my_simple_err,my_digout=self.my_digout,my_reso=self.my_reso,my_strokeLink=self.my_strokeLink)
         #メッシュに変換
         curve = bpy.context.scene.objects.active
         bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
