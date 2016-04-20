@@ -8,7 +8,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 9, 2),
+    "version": (0, 9, 3),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -1286,6 +1286,7 @@ class Gp2LineOperator(bpy.types.Operator):
     my_irinuki = bpy.props.BoolProperty(default=True,name="IritoNuki")
     my_loop = bpy.props.BoolProperty(default=False,name="loop")
     my_strokeLink = bpy.props.BoolProperty(default=False,name="Stroke Link")
+    my_pivot_center = bpy.props.BoolProperty(default=False,name="Pivot Center")
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
     my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
@@ -1352,7 +1353,8 @@ class Gp2LineOperator(bpy.types.Operator):
             #原点を中心に移動
             bpy.context.scene.objects.active = curve
             bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
-            bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
+            if self.my_pivot_center == False:
+                bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
             curve2 = curve
             if self.my_simple_err > 0.0:
                 #Curvesをシンプル化
@@ -1422,7 +1424,7 @@ class Gp2MeshOperator(bpy.types.Operator):
         bpy.ops.mesh.select_all(action='SELECT')
         bpy.ops.mesh.edge_face_add()
         bpy.ops.object.editmode_toggle()
-        
+
         return {'FINISHED'}
         
     def invoke(self, context, event):
