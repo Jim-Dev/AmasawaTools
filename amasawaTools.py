@@ -8,7 +8,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 9, 3),
+    "version": (0, 9, 5),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -294,6 +294,7 @@ class Hair2MeshOperator(bpy.types.Operator):
 
     my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
     my_ystretch = bpy.props.BoolProperty(name="Y stretch")
+    my_radius = bpy.props.BoolProperty(name="Radius",default = False)
 
     def execute(self, context):
         active = bpy.context.scene.objects.active
@@ -413,7 +414,10 @@ class Hair2MeshOperator(bpy.types.Operator):
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
                 spIK.use_y_stretch = self.my_ystretch
-                spIK.use_curve_radius = True
+                if self.my_radius:
+                    spIK.use_curve_radius = True
+                else:
+                    spIK.use_curve_radius = False
             activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
             #重複した頂点を削除
@@ -519,6 +523,7 @@ class Curve2AmaOperator(bpy.types.Operator):
 
     my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
     my_ystretch = bpy.props.BoolProperty(name="Y stretch")
+    my_radius = bpy.props.BoolProperty(name="Radius",default = False)
 
     def execute(self, context):
         active = bpy.context.scene.objects.active
@@ -616,7 +621,10 @@ class Curve2AmaOperator(bpy.types.Operator):
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
                 spIK.use_y_stretch = self.my_ystretch
-                spIK.use_curve_radius = True
+                if self.my_radius:
+                    spIK.use_curve_radius = True
+                else:
+                    spIK.use_curve_radius = False
                 activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
             #シェイプキーを２つ追加し、一つをBasis、一つをKey1にする
@@ -696,6 +704,7 @@ class Hair2MeshFullOperator(bpy.types.Operator):
 
     my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
     my_ystretch = bpy.props.BoolProperty(name="Y stretch")
+    my_radius = bpy.props.BoolProperty(name="Radius",default = False)
 
     def execute(self, context):
         active = bpy.context.scene.objects.active
@@ -821,7 +830,10 @@ class Hair2MeshFullOperator(bpy.types.Operator):
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
                 spIK.use_y_stretch = self.my_ystretch
-                spIK.use_curve_radius = True
+                if self.my_radius:
+                    spIK.use_curve_radius = True
+                else:
+                    spIK.use_curve_radius = False
                 activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
             #重複した頂点を削除
@@ -933,6 +945,7 @@ class Curve2AmaFullOperator(bpy.types.Operator):
 
     my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
     my_ystretch = bpy.props.BoolProperty(name="Y stretch")
+    my_radius = bpy.props.BoolProperty(name="Radius",default = False)
 
     def execute(self, context):
         active = bpy.context.scene.objects.active
@@ -1041,7 +1054,10 @@ class Curve2AmaFullOperator(bpy.types.Operator):
                 spIK.chain_count = len(activeAma.data.bones)
                 spIK.use_chain_offset = False
                 spIK.use_y_stretch = self.my_ystretch
-                spIK.use_curve_radius = True
+                if self.my_radius:
+                    spIK.use_curve_radius = True
+                else:
+                    spIK.use_curve_radius = False
                 activeAma.pose.bones[-1]["spIKName"] = curve.name
             curve.data.resolution_u = 64
             #シェイプキーを２つ追加し、一つをBasis、一つをKey1にする
@@ -1406,6 +1422,8 @@ class Gp2MeshOperator(bpy.types.Operator):
     bl_region_type = "TOOLS"
     
     #設定
+    my_addface = bpy.props.BoolProperty(default=True,description="面を貼る",name="Add Face")
+    my_loop = bpy.props.BoolProperty(default=True,description="ループ",name="Loop")
     my_strokeLink = bpy.props.BoolProperty(default=False,description="すべての辺を繋いだメッシュにするか",name="Stroke Link")
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
@@ -1413,17 +1431,18 @@ class Gp2MeshOperator(bpy.types.Operator):
     
     def execute(self, context):
         #グリースペンシルをカーブに変換
-        bpy.ops.object.gp2line(my_thick=0.0,my_irinuki=False,my_loop=True,my_simple_err=self.my_simple_err,my_digout=self.my_digout,my_reso=self.my_reso,my_strokeLink=self.my_strokeLink)
+        bpy.ops.object.gp2line(my_thick=0.0,my_irinuki=False,my_loop=self.my_loop,my_simple_err=self.my_simple_err,my_digout=self.my_digout,my_reso=self.my_reso,my_strokeLink=self.my_strokeLink)
         #メッシュに変換
         curve = bpy.context.scene.objects.active
         bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
         bpy.ops.object.convert(target='MESH')
-        #編集モードに移行
-        bpy.ops.object.editmode_toggle()
-        #メッシュごとに全選択しメッシュを貼る
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.edge_face_add()
-        bpy.ops.object.editmode_toggle()
+        if self.my_addface:
+            #編集モードに移行
+            bpy.ops.object.editmode_toggle()
+            #メッシュごとに全選択しメッシュを貼る
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.edge_face_add()
+            bpy.ops.object.editmode_toggle()
 
         return {'FINISHED'}
         
