@@ -1,4 +1,12 @@
-﻿import bpy
+﻿'''
+AmasawaTools
+
+Copyright (c) 2016 Amasawa Rasen
+
+This software is released under the MIT License.
+http://opensource.org/licenses/mit-license.php
+'''
+import bpy
 import math 
 import bmesh
 import numpy as np
@@ -8,7 +16,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 9, 5),
+    "version": (0, 9, 6),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
