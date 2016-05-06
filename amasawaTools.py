@@ -16,7 +16,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 9, 6),
+    "version": (0, 9, 8),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -1501,12 +1501,12 @@ def menu_draw( self, context ):
     self.layout.operator_context = 'INVOKE_REGION_WIN' 
     self.layout.operator( MakePIOperator.bl_idname, "make PI" ) 
 
-#指定された角度以下に曲がっている辺にラインを描画
+#指定された角度以上に曲がっている辺にラインを描画
 class Crease2LineOperator(bpy.types.Operator):
     bl_idname = "object.crease2line"
     bl_label = "Crease -> Line"
     bl_options = {'REGISTER','UNDO'}
-    bl_description = "指定された角度以下の折り目をラインに変換(要:Simplify curvesアドオン)"
+    bl_description = "指定された角度以上の折り目をラインに変換(要:Simplify curvesアドオン)"
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     
@@ -1577,7 +1577,11 @@ class Crease2LineOperator(bpy.types.Operator):
                 if len(spline.points) > 2:
                     spline.points[0].radius = 0.0
                     spline.points[-1].radius = 0.0
-                    
+        #原点を中心に移動
+        bpy.context.scene.objects.active = curve2
+        bpy.ops.object.select_pattern(pattern=curve2.name, case_sensitive=False, extend=False)
+        bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
+        
         bpy.ops.object.select_pattern(pattern=curve2.name, case_sensitive=False, extend=False)
         return {'FINISHED'}
         
@@ -1621,6 +1625,7 @@ class AnimeHairPanel(bpy.types.Panel):
         row = col.row(align=True)
         row.operator("object.viewboneconst",text="View")
         row.operator("object.hidenboneconst",text="Mute")
+        
   
 def register():# 登録
     bpy.utils.register_class(AnimeHairOperator)
