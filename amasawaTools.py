@@ -16,7 +16,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 9, 8),
+    "version": (0, 9, 9),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -1436,6 +1436,8 @@ class Gp2MeshOperator(bpy.types.Operator):
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
     my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
+    my_thickness = bpy.props.FloatProperty(name="thicknss",default=0.0,description="厚み付け",step=1)
+    my_solioffset = bpy.props.FloatProperty(name="Soli Offset",default=0.0,description="厚み付けのオフセット",min=-1.0,max=1.0,step=1)
     
     def execute(self, context):
         #グリースペンシルをカーブに変換
@@ -1444,6 +1446,7 @@ class Gp2MeshOperator(bpy.types.Operator):
         curve = bpy.context.scene.objects.active
         bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
         bpy.ops.object.convert(target='MESH')
+        obj = bpy.context.scene.objects.active
         if self.my_addface:
             #編集モードに移行
             bpy.ops.object.editmode_toggle()
@@ -1451,6 +1454,14 @@ class Gp2MeshOperator(bpy.types.Operator):
             bpy.ops.mesh.select_all(action='SELECT')
             bpy.ops.mesh.edge_face_add()
             bpy.ops.object.editmode_toggle()
+        #厚み付け
+        if self.my_thickness != 0.0:
+            bpy.context.scene.objects.active = obj
+            bpy.ops.object.select_pattern(pattern=obj.name, case_sensitive=False, extend=False)
+            bpy.ops.object.modifier_add(type='SOLIDIFY')
+            obj.modifiers[-1].thickness = self.my_thickness
+            obj.modifiers[-1].offset = self.my_solioffset
+            
 
         return {'FINISHED'}
         
