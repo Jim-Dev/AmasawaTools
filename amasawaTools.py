@@ -10,13 +10,14 @@ import bpy
 import math 
 import bmesh
 import numpy as np
+import random
 from math import radians
 
 bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (0, 9, 9),
+    "version": (1, 0, 0),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -1599,7 +1600,151 @@ class Crease2LineOperator(bpy.types.Operator):
     def invoke(self, context, event):
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
+    
+#カメラティスを設定
+class SetCamelattice(bpy.types.Operator):
+    bl_idname = "object.setcamelattice"
+    bl_label = "set Camelattice"
+    bl_description = "カメラの面にラティスを設定"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_depth = bpy.props.FloatProperty(name="depth",default=1.0,description="ラティスとカメラの距離",min=0.0)
+    my_latu = bpy.props.IntProperty(name="Lattice_u",default=2,description="ラティスの縦",min=2)
+    my_latv = bpy.props.IntProperty(name="Lattice_v",default=2,description="ラティスの横",min=2)
+    my_latw = bpy.props.IntProperty(name="Lattice_v",default=1,description="ラティスの横",min=1)
+    
+    def execute(self, context):
+        #ラティスを作る
+        bpy.ops.object.add(type='LATTICE', view_align=False, enter_editmode=False, location=(0, 0, 0),\
+         layers=bpy.data.scenes['Scene'].layers)
+        lat = bpy.context.active_object
+        #ラティスの大きさの調整
+        lat.data.points_u = self.my_latu
+        lat.data.points_v = self.my_latv
+        lat.data.points_w = self.my_latw
+        lat.data.interpolation_type_u = 'KEY_BSPLINE'
+        lat.data.interpolation_type_v = 'KEY_BSPLINE'
+        lat.data.interpolation_type_w = 'KEY_BSPLINE'
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.transform.resize( value=(0.5,0.5,0.5))
+        bpy.ops.object.editmode_toggle()
+        #ラティスをカメラの子にして位置・回転を合わせる
+        lat.location = (0,0,-self.my_depth)
+        camera = bpy.context.scene.camera
+        lat.parent = camera
+        lat.lock_rotation[0] = True
+        lat.lock_rotation[1] = True
+        lat.lock_rotation[2] = True
+        lat.lock_location[0] = True
+        lat.lock_location[1] = True 
+        bpy.ops.object.shape_key_add(from_mix=False)
+        bpy.ops.object.shape_key_add(from_mix=False)
+        lat.data.shape_keys.key_blocks[1].value = 1.0
+        #X,Y拡縮にドライバを設定
+        driver = lat.driver_add('scale',1).driver
+        driver.type = 'SCRIPTED'
+        self.setdrivevalue( driver, lat) 
+        driver.expression ="-depth*tan(camAngle/2)*bpy.context.scene.render.resolution_y * bpy.context.scene.render.pixel_aspect_y/(bpy.context.scene.render.resolution_x * bpy.context.scene.render.pixel_aspect_x)*2"
+        driver = lat.driver_add('scale',0).driver
+        driver.type= 'SCRIPTED'
+        self.setdrivevalue( driver, lat)
+        driver.expression ="-depth*tan(camAngle/2)*2"
+        
+        return {'FINISHED'}
+    
+    def setdrivevalue(self, driver, lattice):
+        angle = driver.variables.new()
+        angle.name = 'camAngle'
+        angle.type = 'SINGLE_PROP'
+        angle.targets[0].id = lattice.parent
+        angle.targets[0].data_path="data.angle"
+        dep = driver.variables.new()
+        dep.name = 'depth'
+        dep.type = 'TRANSFORMS'
+        dep.targets[0].id = lattice
+        dep.targets[0].data_path = 'location'
+        dep.targets[0].transform_type = 'LOC_Z'
+        dep.targets[0].transform_space = 'LOCAL_SPACE'
+        
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+#ランダム値が乗算された配列複製
+class RandArray(bpy.types.Operator):
+    bl_idname = "object.randarray"
+    bl_label = "Rand Array"
+    bl_description = "ランダム値が乗算された配列複製"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_count = bpy.props.IntProperty(name="count",default=2,description="数",min=1)
+    my_objlink = bpy.props.BoolProperty(name="Object Link",default=True)
+    my_useGP = bpy.props.BoolProperty(name="use GP",default=False)
+    my_offset = bpy.props.FloatVectorProperty(name="offset Lot",default=[0,0,0])
+    my_offsetrot = bpy.props.FloatVectorProperty(name="offset rot",default=[0,0,0])
+    my_offsetsca = bpy.props.FloatVectorProperty(name="offset Scale",default=[0,0,0])
+    my_rand = bpy.props.FloatVectorProperty(name="rand Lot",default=[0,0,0],min=0)
+    my_randrot = bpy.props.FloatVectorProperty(name="rand rot",default=[0,0,0],min=0)
+    my_randsca = bpy.props.FloatVectorProperty(name="rand Scale",default=[0,0,0],min=0)
 
+    
+    def execute(self, context):
+        objList = []
+        fobj = bpy.context.active_object
+        bpy.ops.object.select_all(action="DESELECT")
+        bpy.context.scene.objects.active = fobj
+        bpy.ops.object.select_pattern(pattern=fobj.name, case_sensitive=False, extend=False)
+        #選択されたオブジェクトをコピー
+        for c in range(self.my_count):
+            bpy.ops.object.duplicate_move(OBJECT_OT_duplicate={"linked":self.my_objlink, "mode":'TRANSLATION'},\
+             TRANSFORM_OT_translate={"value":(0,0,0),\
+              "constraint_axis":(False, False, False), "constraint_orientation":'LOCAL',\
+              "mirror":False, "proportional":'DISABLED', "proportional_edit_falloff":'SMOOTH',\
+              "proportional_size":1, "snap":False, "snap_target":'CLOSEST',\
+              "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0),\
+              "gpencil_strokes":False, "texture_space":False, "remove_on_cancel":False,\
+              "release_confirm":False})
+            active = bpy.context.active_object
+            active.location = [0,0,0]
+            active.rotation_euler = [0,0,0]
+            active.scale = [1,1,1]
+            active.parent = fobj
+            objList.append(active)
+            
+        #選択されたオブジェクトの位置・回転・拡縮をランダム化
+        for i,obj in enumerate(objList):
+            random.uniform(0,self.my_rand[0])
+            i += 1
+            obj.location = [obj.location[0]+(self.my_offset[0]*i)+(random.uniform(-self.my_rand[0],self.my_rand[0]))\
+                            ,obj.location[1]+(self.my_offset[1]*i)+(random.uniform(-self.my_rand[1],self.my_rand[1]))\
+                            ,obj.location[2]+(self.my_offset[2]*i)+(random.uniform(-self.my_rand[2],self.my_rand[2]))]
+            obj.rotation_euler =\
+                [obj.rotation_euler[0]+(self.my_offsetrot[0]*i)\
+                +random.uniform(-self.my_randrot[0],self.my_randrot[0]),\
+                obj.rotation_euler[1]+(self.my_offsetrot[1]*i)\
+                +random.uniform(-self.my_randrot[1],self.my_randrot[1]),\
+                obj.rotation_euler[2]+(self.my_offsetrot[2]*i)\
+                +random.uniform(-self.my_randrot[2],self.my_randrot[2])]
+            obj.scale =\
+                [obj.scale[0]+(self.my_offsetsca[0]*i)\
+                +random.uniform(-self.my_randsca[0],self.my_randsca[0]),\
+                obj.scale[1]+(self.my_offsetsca[1]*i)\
+                +random.uniform(-self.my_randsca[1],self.my_randsca[1]),\
+                obj.scale[2]+(self.my_offsetsca[2]*i)\
+                +random.uniform(-self.my_randsca[2],self.my_randsca[2])]
+                
+        bpy.context.scene.objects.active = fobj
+        bpy.ops.object.select_pattern(pattern=fobj.name, case_sensitive=False, extend=False)
+        return {'FINISHED'}
+        
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
 #Menu in tools region
 class AnimeHairPanel(bpy.types.Panel):
     bl_label = "Amasawa Tools"
@@ -1637,7 +1782,12 @@ class AnimeHairPanel(bpy.types.Panel):
         row.operator("object.viewboneconst",text="View")
         row.operator("object.hidenboneconst",text="Mute")
         
-  
+        latcol = self.layout.column(align=True)
+        latcol.label(text="Object:")
+        latcol.operator("object.setcamelattice")
+        latcol.operator("object.randarray")
+        
+        
 def register():# 登録
     bpy.utils.register_class(AnimeHairOperator)
     bpy.utils.register_class(Radius2weight)
@@ -1659,6 +1809,9 @@ def register():# 登録
     bpy.utils.register_class( Gp2AnimehairOperator )
     bpy.utils.register_class( Crease2LineOperator )
     bpy.utils.register_class( Gp2MeshOperator )
+    
+    bpy.utils.register_class(SetCamelattice)
+    bpy.utils.register_class(RandArray)
     
     bpy.types.VIEW3D_MT_edit_mesh_specials.append( menu_draw )
     
@@ -1683,6 +1836,9 @@ def unregister():# 解除
     bpy.utils.unregister_class( Gp2AnimehairOperator )
     bpy.utils.unregister_class( Crease2LineOperator )
     bpy.utils.unregister_class( Gp2MeshOperator )
+    
+    bpy.utils.unregister_class( SetCamelattice)
+    bpy.utils.unregister_class( RandArray )
     
     bpy.types.VIEW3D_MT_edit_mesh_specials.remove( menu_draw )
   
