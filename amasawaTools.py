@@ -1677,7 +1677,7 @@ class SetCamelattice(bpy.types.Operator):
 class RandArray(bpy.types.Operator):
     bl_idname = "object.randarray"
     bl_label = "Rand Array"
-    bl_description = "ランダム値が乗算された配列複製"
+    bl_description = "選択オブジェクトをランダムやグリースペンシルを使って配列複製"
     bl_options = {'REGISTER','UNDO'}
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
@@ -1693,7 +1693,7 @@ class RandArray(bpy.types.Operator):
     my_randsca = bpy.props.FloatVectorProperty(name="rand Scale",default=[0,0,0],min=0)
     
     my_useGP = bpy.props.BoolProperty(name="use GP",default=False)
-    my_onGP = bpy.props.BoolProperty(name="on GP",default=False)
+    my_onGP = bpy.props.BoolProperty(name="on GP",default=True)
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.02,\
         description="値を上げるほどカーブがシンプルに(0で無効)",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=3,name="digout",min=0\
@@ -1708,7 +1708,6 @@ class RandArray(bpy.types.Operator):
         bpy.ops.object.select_pattern(pattern=fobj.name, case_sensitive=False, extend=False)
         #選択されたオブジェクトをコピー
         if self.my_useGP:
-            print("useGP")
             #カーブを作る
             bpy.ops.object.gp2line(my_irinuki=False, my_simple_err=self.my_simple_err,\
              my_digout=self.my_digout, my_reso=self.my_reso, my_thick=0)
