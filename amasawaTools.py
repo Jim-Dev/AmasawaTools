@@ -11,6 +11,7 @@ import math
 import bmesh
 import numpy as np
 import random
+import copy
 from math import radians
 
 bl_info = {
@@ -1683,59 +1684,93 @@ class RandArray(bpy.types.Operator):
     
     my_count = bpy.props.IntProperty(name="count",default=2,description="数",min=1)
     my_objlink = bpy.props.BoolProperty(name="Object Link",default=True)
-    my_useGP = bpy.props.BoolProperty(name="use GP",default=False)
+
     my_offset = bpy.props.FloatVectorProperty(name="offset Lot",default=[0,0,0])
     my_offsetrot = bpy.props.FloatVectorProperty(name="offset rot",default=[0,0,0])
     my_offsetsca = bpy.props.FloatVectorProperty(name="offset Scale",default=[0,0,0])
     my_rand = bpy.props.FloatVectorProperty(name="rand Lot",default=[0,0,0],min=0)
     my_randrot = bpy.props.FloatVectorProperty(name="rand rot",default=[0,0,0],min=0)
     my_randsca = bpy.props.FloatVectorProperty(name="rand Scale",default=[0,0,0],min=0)
-
+    
+    my_useGP = bpy.props.BoolProperty(name="use GP",default=False)
+    my_onGP = bpy.props.BoolProperty(name="on GP",default=False)
+    my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.02,\
+        description="値を上げるほどカーブがシンプルに(0で無効)",min=0.0,step=1)
+    my_digout = bpy.props.IntProperty(default=3,name="digout",min=0\
+        ,description="カーブ度合い")
+    my_reso = bpy.props.IntProperty(default=1,name="resolusion",min=0\
+        ,description="解像度")
     
     def execute(self, context):
-        objList = []
         fobj = bpy.context.active_object
         bpy.ops.object.select_all(action="DESELECT")
         bpy.context.scene.objects.active = fobj
         bpy.ops.object.select_pattern(pattern=fobj.name, case_sensitive=False, extend=False)
         #選択されたオブジェクトをコピー
-        for c in range(self.my_count):
-            bpy.ops.object.duplicate_move(OBJECT_OT_duplicate={"linked":self.my_objlink, "mode":'TRANSLATION'},\
-             TRANSFORM_OT_translate={"value":(0,0,0),\
-              "constraint_axis":(False, False, False), "constraint_orientation":'LOCAL',\
-              "mirror":False, "proportional":'DISABLED', "proportional_edit_falloff":'SMOOTH',\
-              "proportional_size":1, "snap":False, "snap_target":'CLOSEST',\
-              "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0),\
-              "gpencil_strokes":False, "texture_space":False, "remove_on_cancel":False,\
-              "release_confirm":False})
-            active = bpy.context.active_object
-            active.location = [0,0,0]
-            active.rotation_euler = [0,0,0]
-            active.scale = [1,1,1]
-            active.parent = fobj
-            objList.append(active)
+        if self.my_useGP:
+            print("useGP")
+            #カーブを作る
+            bpy.ops.object.gp2line(my_irinuki=False, my_simple_err=self.my_simple_err,\
+             my_digout=self.my_digout, my_reso=self.my_reso, my_thick=0)
+            #カーブをメッシュに変換
+            curve = bpy.context.scene.objects.active
+            bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
+            bpy.ops.object.convert(target='MESH',keep_original=False)
+            curveobj = bpy.context.scene.objects.active
+            #カーブオブジェの子に
+            if self.my_onGP:
+                fobj.location = [0,0,0]
+                fobj.parent = curveobj
+            else:
+                curveobj.location = [0,0,0]
+                curveobj.rotation_euler = [0,0,0]
+                curveobj.scale = [1,1,1]
+                foblot = copy.copy(fobj.location)
+                fobj.parent = curveobj
+                fobj.location = [0,0,0]
+                curveobj.location = foblot
+            #複製　頂点にチェック
+            curveobj.dupli_type = "VERTS"
             
-        #選択されたオブジェクトの位置・回転・拡縮をランダム化
-        for i,obj in enumerate(objList):
-            random.uniform(0,self.my_rand[0])
-            i += 1
-            obj.location = [obj.location[0]+(self.my_offset[0]*i)+(random.uniform(-self.my_rand[0],self.my_rand[0]))\
-                            ,obj.location[1]+(self.my_offset[1]*i)+(random.uniform(-self.my_rand[1],self.my_rand[1]))\
-                            ,obj.location[2]+(self.my_offset[2]*i)+(random.uniform(-self.my_rand[2],self.my_rand[2]))]
-            obj.rotation_euler =\
-                [obj.rotation_euler[0]+(self.my_offsetrot[0]*i)\
-                +random.uniform(-self.my_randrot[0],self.my_randrot[0]),\
-                obj.rotation_euler[1]+(self.my_offsetrot[1]*i)\
-                +random.uniform(-self.my_randrot[1],self.my_randrot[1]),\
-                obj.rotation_euler[2]+(self.my_offsetrot[2]*i)\
-                +random.uniform(-self.my_randrot[2],self.my_randrot[2])]
-            obj.scale =\
-                [obj.scale[0]+(self.my_offsetsca[0]*i)\
-                +random.uniform(-self.my_randsca[0],self.my_randsca[0]),\
-                obj.scale[1]+(self.my_offsetsca[1]*i)\
-                +random.uniform(-self.my_randsca[1],self.my_randsca[1]),\
-                obj.scale[2]+(self.my_offsetsca[2]*i)\
-                +random.uniform(-self.my_randsca[2],self.my_randsca[2])]
+        else:
+            objList = []
+            for c in range(self.my_count):
+                bpy.ops.object.duplicate_move(OBJECT_OT_duplicate={"linked":self.my_objlink, "mode":'TRANSLATION'},\
+                 TRANSFORM_OT_translate={"value":(0,0,0),\
+                  "constraint_axis":(False, False, False), "constraint_orientation":'LOCAL',\
+                  "mirror":False, "proportional":'DISABLED', "proportional_edit_falloff":'SMOOTH',\
+                  "proportional_size":1, "snap":False, "snap_target":'CLOSEST',\
+                  "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0),\
+                  "gpencil_strokes":False, "texture_space":False, "remove_on_cancel":False,\
+                  "release_confirm":False})
+                active = bpy.context.active_object
+                active.location = [0,0,0]
+                active.rotation_euler = [0,0,0]
+                active.scale = [1,1,1]
+                active.parent = fobj
+                objList.append(active)
+            
+            #選択されたオブジェクトの位置・回転・拡縮をランダム化
+            for i,obj in enumerate(objList):
+                random.uniform(0,self.my_rand[0])
+                i += 1
+                obj.location = [obj.location[0]+(self.my_offset[0]*i)+(random.uniform(-self.my_rand[0],self.my_rand[0]))\
+                                ,obj.location[1]+(self.my_offset[1]*i)+(random.uniform(-self.my_rand[1],self.my_rand[1]))\
+                                ,obj.location[2]+(self.my_offset[2]*i)+(random.uniform(-self.my_rand[2],self.my_rand[2]))]
+                obj.rotation_euler =\
+                    [obj.rotation_euler[0]+(self.my_offsetrot[0]*i)\
+                    +random.uniform(-self.my_randrot[0],self.my_randrot[0]),\
+                    obj.rotation_euler[1]+(self.my_offsetrot[1]*i)\
+                    +random.uniform(-self.my_randrot[1],self.my_randrot[1]),\
+                    obj.rotation_euler[2]+(self.my_offsetrot[2]*i)\
+                    +random.uniform(-self.my_randrot[2],self.my_randrot[2])]
+                obj.scale =\
+                    [obj.scale[0]+(self.my_offsetsca[0]*i)\
+                    +random.uniform(-self.my_randsca[0],self.my_randsca[0]),\
+                    obj.scale[1]+(self.my_offsetsca[1]*i)\
+                    +random.uniform(-self.my_randsca[1],self.my_randsca[1]),\
+                    obj.scale[2]+(self.my_offsetsca[2]*i)\
+                    +random.uniform(-self.my_randsca[2],self.my_randsca[2])]
                 
         bpy.context.scene.objects.active = fobj
         bpy.ops.object.select_pattern(pattern=fobj.name, case_sensitive=False, extend=False)
