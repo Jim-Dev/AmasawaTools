@@ -18,7 +18,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (1, 0, 1),
+    "version": (1, 0, 2),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -1476,6 +1476,7 @@ class Gp2MeshOperator(bpy.types.Operator):
             bpy.ops.transform.skin_resize(value=(self.my_skinvalueX, self.my_skinvalueY, 0.25),\
              constraint_axis=(False, False, False), constraint_orientation='LOCAL',\
              mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
+            bpy.ops.object.skin_root_mark()
             bpy.ops.object.editmode_toggle()
         #頂点を結合
         if self.my_removedoubles > 0.0:
