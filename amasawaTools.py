@@ -18,7 +18,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (1, 0, 0),
+    "version": (1, 0, 1),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -305,6 +305,7 @@ class Hair2MeshOperator(bpy.types.Operator):
     my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
     my_ystretch = bpy.props.BoolProperty(name="Y stretch")
     my_radius = bpy.props.BoolProperty(name="Radius",default = False)
+    my_hide_select = bpy.props.BoolProperty(name="hide select", default=False)
 
     def execute(self, context):
         active = bpy.context.scene.objects.active
@@ -498,7 +499,7 @@ class Hair2MeshOperator(bpy.types.Operator):
             activeMesh = bpy.context.scene.objects.active
             activeMesh.modifiers["Armature"].object = pama
             #メッシュを選択不可能オブジェクトにする
-            activeMesh.hide_select = True
+            activeMesh.hide_select = self.my_hide_select
         #親エンプティの回転を元のCurveと同じにする
         emptyobj.rotation_euler = defaultrot
         #アーマチュアのデータを随時更新に変更
@@ -715,6 +716,7 @@ class Hair2MeshFullOperator(bpy.types.Operator):
     my_boneName = bpy.props.StringProperty(name="BoneName",default="Untitled")
     my_ystretch = bpy.props.BoolProperty(name="Y stretch")
     my_radius = bpy.props.BoolProperty(name="Radius",default = False)
+    my_hide_select = bpy.props.BoolProperty(name="hide select", default=False)
 
     def execute(self, context):
         active = bpy.context.scene.objects.active
@@ -919,7 +921,7 @@ class Hair2MeshFullOperator(bpy.types.Operator):
             activeMesh = bpy.context.scene.objects.active
             activeMesh.modifiers["Armature"].object = pama
             #メッシュを選択不可能オブジェクトにする
-            activeMesh.hide_select = True
+            activeMesh.hide_select = self.my_hide_select
         #親エンプティの回転を元のCurveと同じにする
         emptyobj.rotation_euler = defaultrot
         #アーマチュアのデータを随時更新に変更
@@ -940,7 +942,6 @@ class Hair2MeshFullOperator(bpy.types.Operator):
         #選択をEmptyに
         bpy.ops.object.select_all(action='DESELECT')
         bpy.ops.object.select_pattern(pattern=emptyobj.name, case_sensitive=False, extend=False)
-        #return {'FINISHED'}
         return {'FINISHED'}
     def invoke(self, context, event):
         wm = context.window_manager
@@ -1440,6 +1441,10 @@ class Gp2MeshOperator(bpy.types.Operator):
     my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
     my_thickness = bpy.props.FloatProperty(name="thicknss",default=0.0,description="厚み付け",step=1)
     my_solioffset = bpy.props.FloatProperty(name="Soli Offset",default=0.0,description="厚み付けのオフセット",min=-1.0,max=1.0,step=1)
+    my_isskin = bpy.props.BoolProperty(default=False,description="スキンモディファイアを設定",name="Add Skin")
+    my_skinvalueX = bpy.props.FloatProperty(name="skin X",default=0.25,description="",min=0.0,step=1)
+    my_skinvalueY = bpy.props.FloatProperty(name="skin Y",default=0.25,description="",min=0.0,step=1)
+    my_removedoubles = bpy.props.FloatProperty(name="remove doubles",default=0.0,description="値の距離以下の頂点は結合(0で無効)",min=0.0,step=1)
     
     def execute(self, context):
         #グリースペンシルをカーブに変換
@@ -1463,6 +1468,23 @@ class Gp2MeshOperator(bpy.types.Operator):
             bpy.ops.object.modifier_add(type='SOLIDIFY')
             obj.modifiers[-1].thickness = self.my_thickness
             obj.modifiers[-1].offset = self.my_solioffset
+        #スキンモディファイアを設定
+        if self.my_isskin:
+            bpy.ops.object.modifier_add(type='SKIN')
+            bpy.ops.object.editmode_toggle()
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.transform.skin_resize(value=(self.my_skinvalueX, self.my_skinvalueY, 0.25),\
+             constraint_axis=(False, False, False), constraint_orientation='LOCAL',\
+             mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
+            bpy.ops.object.editmode_toggle()
+        #頂点を結合
+        if self.my_removedoubles > 0.0:
+            bpy.ops.object.editmode_toggle()
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.remove_doubles(threshold=self.my_removedoubles,\
+             use_unselected=False)
+            bpy.ops.object.editmode_toggle()
+            
             
 
         return {'FINISHED'}
