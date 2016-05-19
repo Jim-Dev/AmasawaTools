@@ -18,7 +18,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (1, 0, 2),
+    "version": (1, 0, 5),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -1437,6 +1437,7 @@ class Gp2MeshOperator(bpy.types.Operator):
     my_loop = bpy.props.BoolProperty(default=True,description="ループ",name="Loop")
     my_strokeLink = bpy.props.BoolProperty(default=False,description="すべての辺を繋いだメッシュにするか",name="Stroke Link")
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
+    my_removedoubles = bpy.props.FloatProperty(name="remove doubles",default=0.0,description="値の距離以下の頂点は結合(0で無効)",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
     my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
     my_thickness = bpy.props.FloatProperty(name="thicknss",default=0.0,description="厚み付け",step=1)
@@ -1444,7 +1445,6 @@ class Gp2MeshOperator(bpy.types.Operator):
     my_isskin = bpy.props.BoolProperty(default=False,description="スキンモディファイアを設定",name="Add Skin")
     my_skinvalueX = bpy.props.FloatProperty(name="skin X",default=0.25,description="",min=0.0,step=1)
     my_skinvalueY = bpy.props.FloatProperty(name="skin Y",default=0.25,description="",min=0.0,step=1)
-    my_removedoubles = bpy.props.FloatProperty(name="remove doubles",default=0.0,description="値の距離以下の頂点は結合(0で無効)",min=0.0,step=1)
     
     def execute(self, context):
         #グリースペンシルをカーブに変換
@@ -1454,6 +1454,13 @@ class Gp2MeshOperator(bpy.types.Operator):
         bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
         bpy.ops.object.convert(target='MESH')
         obj = bpy.context.scene.objects.active
+        #頂点を結合
+        if self.my_removedoubles > 0.0:
+            bpy.ops.object.editmode_toggle()
+            bpy.ops.mesh.select_all(action='SELECT')
+            bpy.ops.mesh.remove_doubles(threshold=self.my_removedoubles,\
+             use_unselected=False)
+            bpy.ops.object.editmode_toggle()
         if self.my_addface:
             #編集モードに移行
             bpy.ops.object.editmode_toggle()
@@ -1478,13 +1485,7 @@ class Gp2MeshOperator(bpy.types.Operator):
              mirror=False, proportional='DISABLED', proportional_edit_falloff='SMOOTH', proportional_size=1)
             bpy.ops.object.skin_root_mark()
             bpy.ops.object.editmode_toggle()
-        #頂点を結合
-        if self.my_removedoubles > 0.0:
-            bpy.ops.object.editmode_toggle()
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.remove_doubles(threshold=self.my_removedoubles,\
-             use_unselected=False)
-            bpy.ops.object.editmode_toggle()
+
             
             
 
@@ -1634,12 +1635,17 @@ class SetCamelattice(bpy.types.Operator):
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     
-    my_depth = bpy.props.FloatProperty(name="depth",default=1.0,description="ラティスとカメラの距離",min=0.0)
+    my_depth = bpy.props.FloatProperty(name="depth",default=1.0,description="ラティスとカメラの距離",min=0.0,\
+        subtype='DISTANCE',unit='LENGTH')
     my_latu = bpy.props.IntProperty(name="Lattice_u",default=2,description="ラティスの縦",min=2)
     my_latv = bpy.props.IntProperty(name="Lattice_v",default=2,description="ラティスの横",min=2)
-    my_latw = bpy.props.IntProperty(name="Lattice_v",default=1,description="ラティスの横",min=1)
+    my_latw = bpy.props.IntProperty(name="Lattice_v",default=1,description="ラティスの奥ゆき",min=1)
+    my_setLattice = bpy.props.BoolProperty(name="set Lattice",default=False,\
+        description="選択したオブジェクトにラティスを設定")
     
     def execute(self, context):
+        #選択オブジェクトはラティスを設定するときに使う
+        selectObjList = bpy.context.selected_objects
         #ラティスを作る
         bpy.ops.object.add(type='LATTICE', view_align=False, enter_editmode=False, location=(0, 0, 0),\
          layers=bpy.data.scenes['Scene'].layers)
@@ -1676,6 +1682,19 @@ class SetCamelattice(bpy.types.Operator):
         self.setdrivevalue( driver, lat)
         driver.expression ="-depth*tan(camAngle/2)*2"
         
+        #オブジェクトを選択していた場合ラティスを設定
+        objlistlotadd = [0,0,0]
+        if len(selectObjList) > 0 and self.my_setLattice:
+            for obj in selectObjList:
+                print(obj)
+                bpy.ops.object.select_all(action='DESELECT')
+                bpy.context.scene.objects.active = obj
+                bpy.ops.object.select_pattern(pattern=obj.name, case_sensitive=False, extend=False)
+                bpy.ops.object.modifier_add(type='LATTICE')
+                obj.modifiers[-1].object = lat
+
+        bpy.context.scene.objects.active = lat
+        bpy.ops.object.select_pattern(pattern=lat.name, case_sensitive=False, extend=False)
         return {'FINISHED'}
     
     def setdrivevalue(self, driver, lattice):
@@ -1711,6 +1730,7 @@ class RandArray(bpy.types.Operator):
     my_offset = bpy.props.FloatVectorProperty(name="offset Lot",default=[0,0,0])
     my_offsetrot = bpy.props.FloatVectorProperty(name="offset rot",default=[0,0,0])
     my_offsetsca = bpy.props.FloatVectorProperty(name="offset Scale",default=[0,0,0])
+    
     my_rand = bpy.props.FloatVectorProperty(name="rand Lot",default=[0,0,0],min=0)
     my_randrot = bpy.props.FloatVectorProperty(name="rand rot",default=[0,0,0],min=0)
     my_randsca = bpy.props.FloatVectorProperty(name="rand Scale",default=[0,0,0],min=0)
@@ -1739,10 +1759,17 @@ class RandArray(bpy.types.Operator):
             bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
             bpy.ops.object.convert(target='MESH',keep_original=False)
             curveobj = bpy.context.scene.objects.active
-            #カーブオブジェの子に
+            #グリースペンシルを使用するかしないか
             if self.my_onGP:
+                fobjLoc = copy.copy(fobj.location)
                 fobj.location = [0,0,0]
                 fobj.parent = curveobj
+                curLoc = bpy.context.scene.cursor_location.copy()
+                bpy.context.scene.cursor_location = fobjLoc
+                bpy.ops.object.origin_set(type='ORIGIN_CURSOR')
+                fobj.location = fobjLoc
+                bpy.context.scene.cursor_location = curLoc
+                
             else:
                 curveobj.location = [0,0,0]
                 curveobj.rotation_euler = [0,0,0]
@@ -1755,6 +1782,7 @@ class RandArray(bpy.types.Operator):
             curveobj.dupli_type = "VERTS"
             
         else:
+            #グリースペンシルを使用しない場合
             objList = []
             for c in range(self.my_count):
                 bpy.ops.object.duplicate_move(OBJECT_OT_duplicate={"linked":self.my_objlink, "mode":'TRANSLATION'},\
