@@ -7,6 +7,7 @@ This software is released under the MIT License.
 http://opensource.org/licenses/mit-license.php
 '''
 import bpy
+from mathutils import Vector
 import math 
 import bmesh
 import numpy as np
@@ -18,7 +19,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (1, 0, 5),
+    "version": (1, 0, 8),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -1486,9 +1487,6 @@ class Gp2MeshOperator(bpy.types.Operator):
             bpy.ops.object.skin_root_mark()
             bpy.ops.object.editmode_toggle()
 
-            
-            
-
         return {'FINISHED'}
         
     def invoke(self, context, event):
@@ -1731,9 +1729,12 @@ class RandArray(bpy.types.Operator):
     my_offsetrot = bpy.props.FloatVectorProperty(name="offset rot",default=[0,0,0])
     my_offsetsca = bpy.props.FloatVectorProperty(name="offset Scale",default=[0,0,0])
     
-    my_rand = bpy.props.FloatVectorProperty(name="rand Lot",default=[0,0,0],min=0)
-    my_randrot = bpy.props.FloatVectorProperty(name="rand rot",default=[0,0,0],min=0)
-    my_randsca = bpy.props.FloatVectorProperty(name="rand Scale",default=[0,0,0],min=0)
+    my_randSeed = bpy.props.IntProperty(default=1,name="Random Seed"\
+        ,description="ランダムシード")
+    my_rand = bpy.props.FloatVectorProperty(name="rand Lot",default=[0,0,0])
+    my_randrot = bpy.props.FloatVectorProperty(name="rand rot",default=[0,0,0])
+    my_scale_even = bpy.props.BoolProperty(name="Scale Even",default=False)
+    my_randsca = bpy.props.FloatVectorProperty(name="rand Scale",default=[0,0,0])
     
     my_useGP = bpy.props.BoolProperty(name="use GP",default=False)
     my_onGP = bpy.props.BoolProperty(name="on GP",default=True)
@@ -1744,11 +1745,15 @@ class RandArray(bpy.types.Operator):
     my_reso = bpy.props.IntProperty(default=1,name="resolusion",min=0\
         ,description="解像度")
     
+    my_camera_track = bpy.props.BoolProperty(name="Camera Track",default=False)
+    
+    
     def execute(self, context):
         fobj = bpy.context.active_object
         bpy.ops.object.select_all(action="DESELECT")
         bpy.context.scene.objects.active = fobj
         bpy.ops.object.select_pattern(pattern=fobj.name, case_sensitive=False, extend=False)
+        curveobj = None
         #選択されたオブジェクトをコピー
         if self.my_useGP:
             #カーブを作る
@@ -1800,28 +1805,63 @@ class RandArray(bpy.types.Operator):
                 active.parent = fobj
                 objList.append(active)
             
-            #選択されたオブジェクトの位置・回転・拡縮をランダム化
-            for i,obj in enumerate(objList):
-                random.uniform(0,self.my_rand[0])
+            #選択されたオブジェクトの位置・回転・拡縮
+            for i,o in enumerate(objList):
                 i += 1
-                obj.location = [obj.location[0]+(self.my_offset[0]*i)+(random.uniform(-self.my_rand[0],self.my_rand[0]))\
-                                ,obj.location[1]+(self.my_offset[1]*i)+(random.uniform(-self.my_rand[1],self.my_rand[1]))\
-                                ,obj.location[2]+(self.my_offset[2]*i)+(random.uniform(-self.my_rand[2],self.my_rand[2]))]
-                obj.rotation_euler =\
-                    [obj.rotation_euler[0]+(self.my_offsetrot[0]*i)\
-                    +random.uniform(-self.my_randrot[0],self.my_randrot[0]),\
-                    obj.rotation_euler[1]+(self.my_offsetrot[1]*i)\
-                    +random.uniform(-self.my_randrot[1],self.my_randrot[1]),\
-                    obj.rotation_euler[2]+(self.my_offsetrot[2]*i)\
-                    +random.uniform(-self.my_randrot[2],self.my_randrot[2])]
-                obj.scale =\
-                    [obj.scale[0]+(self.my_offsetsca[0]*i)\
-                    +random.uniform(-self.my_randsca[0],self.my_randsca[0]),\
-                    obj.scale[1]+(self.my_offsetsca[1]*i)\
-                    +random.uniform(-self.my_randsca[1],self.my_randsca[1]),\
-                    obj.scale[2]+(self.my_offsetsca[2]*i)\
-                    +random.uniform(-self.my_randsca[2],self.my_randsca[2])]
+                o.location = [self.my_offset[0] * i,\
+                              self.my_offset[1] * i,\
+                              self.my_offset[2] * i]
+                o.rotation_euler = [self.my_offsetrot[0] * i,\
+                                    self.my_offsetrot[1] * i,\
+                                    self.my_offsetrot[2] * i]
+                o.scale = [o.scale[0] + self.my_offsetsca[0] * i,\
+                           o.scale[1] + self.my_offsetsca[1] * i,\
+                           o.scale[2] + self.my_offsetsca[2] * i]
+                           
+            #オブジェクトトランスフォームのランダム化
+            loc = self.my_rand
+            rot = self.my_randrot
+            scale = self.my_randsca
+            random.seed(self.my_randSeed)
+            def rand_vec(vec_range):
+                return Vector(random.uniform(-val, val) for val in vec_range)
+            for obj in objList:
+                obj.location += rand_vec(loc)
+                rotvec = rand_vec(rot)
+                obj.rotation_euler[0] += rotvec[0]
+                obj.rotation_euler[1] += rotvec[1]
+                obj.rotation_euler[2] += rotvec[2]
+                if self.my_scale_even:
+                    scavec = rand_vec(scale)
+                    obj.scale[0] += scavec[0]
+                    obj.scale[1] += scavec[0]
+                    obj.scale[2] += scavec[0]
+                else:
+                    obj.scale += rand_vec(scale)
+                    
+        #オブジェクトがカメラの方向を向く機能
+        if self.my_camera_track == True:
+            if self.my_useGP == True:
+                bpy.ops.object.select_all(action='DESELECT')
+                bpy.context.scene.objects.active = curveobj
+                bpy.ops.object.select_pattern(pattern=curveobj.name,\
+                 case_sensitive=False, extend=False)
+                bpy.ops.object.duplicates_make_real()
+                objList = bpy.context.selected_objects
+                activeLine = objList.pop()
+                bpy.context.scene.objects.active = activeLine
+                bpy.ops.object.select_pattern(pattern=activeLine.name,\
+                 case_sensitive=False, extend=False)
+                bpy.ops.object.delete(use_global=False)
+            for o in objList:
+                bpy.ops.object.select_all(action='DESELECT')
+                bpy.context.scene.objects.active = o
+                bpy.ops.object.select_pattern(pattern=o.name,\
+                 case_sensitive=False, extend=False)
+                bpy.ops.object.constraint_add(type='LOCKED_TRACK')
+                o.constraints[-1].target = bpy.context.scene.camera
                 
+        bpy.ops.object.select_all(action='DESELECT')
         bpy.context.scene.objects.active = fobj
         bpy.ops.object.select_pattern(pattern=fobj.name, case_sensitive=False, extend=False)
         return {'FINISHED'}
@@ -1830,6 +1870,90 @@ class RandArray(bpy.types.Operator):
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
     
+#ビル群を作る
+class MakeBuildings(bpy.types.Operator):
+    bl_idname = "object.makebuildings"
+    bl_label = "Make buildings"
+    bl_description = "ビル群を作る"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_subdiv = bpy.props.IntProperty(name="subdivision",default=30,description="分割数",min=1)
+    my_cloudSize = bpy.props.FloatProperty(name="Clund Size",default=1)
+    my_cloudDepth = bpy.props.IntProperty(name="Clund Depth",default=4)
+    my_dispStrength = bpy.props.FloatProperty(name="Clund Size",default=6.0)
+    my_angleLimit = bpy.props.FloatProperty(name="Angle Limit",default=1,min=0,max=3.14)
+    my_use_dissolve_boundaries = bpy.props.BoolProperty(name="All Boundaries",default=True)
+    my_step = bpy.props.IntProperty(name="Step",default=10,min=0)
+    my_step_hight = bpy.props.FloatProperty(name="Step Hight",default=0.3)
+    my_stepSelectPercent = bpy.props.IntProperty(name="Step Select Percent",default=50,min=0,max=100)
+    my_stepSelectSeed = bpy.props.IntProperty(name="Step Select Seed",default=1,min=1)
+    
+    def execute(self, context):
+        bpy.ops.mesh.primitive_grid_add(radius=1, view_align=False,\
+        enter_editmode=False, location=(0, 0, 0), layers=bpy.context.scene.layers,\
+        x_subdivisions = self.my_subdiv, y_subdivisions=self.my_subdiv)
+        
+        #ディスプレイス
+        act_obj = bpy.context.active_object
+        act_obj.show_wire = True
+        act_obj.show_all_edges = True
+        bpy.ops.object.modifier_add(type='DISPLACE')
+        bpy.ops.texture.new()
+        tex = bpy.data.textures[-1]
+        disp = act_obj.modifiers[-1]
+        tex.type = 'CLOUDS'
+        disp.strength = self.my_dispStrength
+        bpy.data.textures[tex.name].noise_type = 'HARD_NOISE'
+        bpy.data.textures[tex.name].noise_scale = self.my_cloudSize
+        bpy.data.textures[tex.name].noise_depth = self.my_cloudDepth
+        disp.texture = tex
+        
+        #ポリゴン数削減
+        bpy.ops.object.modifier_add(type='DECIMATE')
+        decimate = act_obj.modifiers[-1]
+        decimate.decimate_type = 'DISSOLVE'
+        decimate.angle_limit = self.my_angleLimit
+        decimate.use_dissolve_boundaries= self.my_use_dissolve_boundaries
+        
+        #モディファイアの適用
+        bpy.ops.object.modifier_apply(apply_as='DATA', modifier=disp.name)
+        bpy.ops.object.modifier_apply(apply_as='DATA', modifier=decimate.name)
+        
+        #平面化
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.mesh.select_mode(use_extend=False, use_expand=False, type='FACE', action='TOGGLE')
+        bpy.ops.mesh.select_all(action="SELECT")
+        bpy.ops.transform.resize(value=(1, 1, 0), constraint_axis=(False, False, True),\
+         constraint_orientation='GLOBAL', mirror=False, proportional='DISABLED',\
+         proportional_edit_falloff='SMOOTH', proportional_size=1)
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.object.origin_set(type='GEOMETRY_ORIGIN')
+        bpy.ops.object.editmode_toggle()
+        
+        #ランダム選択->引き伸ばし
+        bpy.ops.mesh.select_all(action="SELECT")
+        for i in range(self.my_step):
+            bpy.ops.mesh.select_random(percent=self.my_stepSelectPercent,
+             seed=self.my_stepSelectSeed, action='DESELECT')
+            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"mirror":False},
+             TRANSFORM_OT_translate={"value":(0.0, 0.0, self.my_step_hight),
+             "constraint_axis":(False, False, True), "constraint_orientation":'NORMAL',
+             "mirror":False, "proportional":'DISABLED', "proportional_edit_falloff":'SMOOTH',
+             "proportional_size":1, "snap":False, "snap_target":'CLOSEST', "snap_point":(0, 0, 0),
+             "snap_align":False, "snap_normal":(0, 0, 0), "gpencil_strokes":False, "texture_space":False,
+             "remove_on_cancel":False, "release_confirm":False})
+        
+        bpy.ops.object.editmode_toggle()
+        
+
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+     
 #Menu in tools region
 class AnimeHairPanel(bpy.types.Panel):
     bl_label = "Amasawa Tools"
@@ -1857,6 +1981,27 @@ class AnimeHairPanel(bpy.types.Panel):
         col.operator("object.gp2line")
         col.operator("object.gp2mesh")
         col.operator("object.gp2animehair")
+        
+        if context.space_data.type == 'VIEW_3D':
+            propname = "gpencil_stroke_placement_view3d"
+        elif context.space_data.type == 'SEQUENCE_EDITOR':
+            propname = "gpencil_stroke_placement_sequencer_preview"
+        elif context.space_data.type == 'IMAGE_EDITOR':
+            propname = "gpencil_stroke_placement_image_editor"
+        else:
+            propname = "gpencil_stroke_placement_view2d"
+        ts = context.tool_settings
+        col.label(text="Stroke Placement:")
+        row = col.row(align=True)
+        row.prop_enum(ts, propname, 'VIEW')
+        row.prop_enum(ts, propname, 'CURSOR')
+        if context.space_data.type == 'VIEW_3D':
+            row = col.row(align=True)
+            row.prop_enum(ts, propname, 'SURFACE')
+            row.prop_enum(ts, propname, 'STROKE')
+            row = col.row(align=False)
+            row.active = getattr(ts, propname) in {'SURFACE', 'STROKE'}
+            row.prop(ts, "use_gpencil_stroke_endpoints")
 
         col.label(text="all of Spline IK:")
         row = col.row(align=True)
@@ -1871,6 +2016,7 @@ class AnimeHairPanel(bpy.types.Panel):
         latcol.label(text="Object:")
         latcol.operator("object.setcamelattice")
         latcol.operator("object.randarray")
+        latcol.operator("object.makebuildings")
         
         
 def register():# 登録
@@ -1897,6 +2043,8 @@ def register():# 登録
     
     bpy.utils.register_class(SetCamelattice)
     bpy.utils.register_class(RandArray)
+    bpy.utils.register_class(MakeBuildings)
+    
     
     bpy.types.VIEW3D_MT_edit_mesh_specials.append( menu_draw )
     
@@ -1924,6 +2072,7 @@ def unregister():# 解除
     
     bpy.utils.unregister_class( SetCamelattice)
     bpy.utils.unregister_class( RandArray )
+    bpy.utils.unregister_class(MakeBuildings)
     
     bpy.types.VIEW3D_MT_edit_mesh_specials.remove( menu_draw )
   
