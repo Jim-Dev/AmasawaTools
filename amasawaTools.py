@@ -19,7 +19,7 @@ bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (1, 1, 3),
+    "version": (1, 1, 5),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -396,7 +396,8 @@ class AnimeHairOperator(bpy.types.Operator):
         #NurbsかBeziersに変換
         bpy.ops.object.mode_set(mode='EDIT')
         if self.my_beziers_auto:
-            bpy.ops.curve.spline_type_set(type='BEZIER')
+            for s in active.data.splines:
+                s.type = 'BEZIER'
             for s in active.data.splines:
                 for p in s.bezier_points:
                     p.handle_left_type = 'AUTO'
@@ -442,7 +443,7 @@ class AnimeHairOperator(bpy.types.Operator):
         target = bpy.context.scene.objects.active
         if self.my_int_taparType == 0:
             for spline in bpy.context.active_object.data.splines:
-                if self.my_beziers_auto:
+                if spline.type == 'BEZIER':
                     spline.bezier_points[-1].radius = 0.0
                 else:
                     spline.points[-1].radius = 0.0
@@ -564,14 +565,15 @@ class AnimeHairOperator(bpy.types.Operator):
                 else:
     	            for point in spline.points:
     	                point.weight_softbody = self.my_float_weight
-	        #根本とその次のゴールウェイトに1を設定
-            for spline in bpy.data.curves[objname].splines:
-                if self.my_beziers_auto:
-                    spline.bezier_points[0].weight_softbody = 1
-                    spline.bezier_points[1].weight_softbody = 1
-                else:
-                   spline.points[0].weight_softbody = 1
-                   spline.points[1].weight_softbody = 1
+	    #根本とその次のゴールウェイトに1を設定
+        for spline in bpy.data.curves[objname].splines:
+            if spline.type=='BEZIER':
+                spline.bezier_points[0].weight_softbody = 1
+                spline.bezier_points[1].weight_softbody = 1
+                print("softweight",spline.bezier_points[0].weight_softbody)
+            else:
+               spline.points[0].weight_softbody = 1
+               spline.points[1].weight_softbody = 1
             
         #ソフトボディを設定
         bpy.ops.object.modifier_add(type='SOFT_BODY')
@@ -583,6 +585,7 @@ class AnimeHairOperator(bpy.types.Operator):
         	if m.type == 'SOFT_BODY':
         		softbody = m
         softbody.point_cache.frame_step = 1
+        
         return {'FINISHED'}
     def invoke(self, context, event):
         wm = context.window_manager
@@ -599,10 +602,15 @@ class Radius2weight(bpy.types.Operator):
     def execute(self, context):
         active = bpy.context.scene.objects.active
         for spline in active.data.splines:
-            for point in spline.points:
-                #しきい値以下だったらコピー
-                if self.my_float_max_radius >= point.radius:
-                    point.weight_softbody = point.radius
+            if spline.type == 'POLY' or spline.type == 'NURBS':
+                for point in spline.points:
+                    #しきい値以下だったらコピー
+                    if self.my_float_max_radius >= point.radius:
+                        point.weight_softbody = point.radius
+            else:
+                for p in spline.bezier_points:
+                    if self.my_float_max_radius >= p.radius:
+                        p.weight_softbody = p.radius
         return {'FINISHED'}
 
 #Curveをアーマチュア付きメッシュに変換
@@ -1833,6 +1841,7 @@ class Gp2AnimehairOperator(bpy.types.Operator):
     my_float_mass_2 = bpy.props.FloatProperty(name="SoftBody Mass",default=0.3,min=0.0,)
     my_float_goal_friction_2 = bpy.props.FloatProperty(name="SoftBody Friction",default=5.0,min=0.0)
     
+    my_beziers_auto = bpy.props.BoolProperty(name="Beziers Auto",default=False)
     my_simple_flag = bpy.props.BoolProperty(name="simplify Curve")
     my_simple_err = bpy.props.FloatProperty(name="Simple_err",default=0.015,description="値を上げるほどカーブがシンプルになる",min=0.0,step=1)
     my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
@@ -1843,7 +1852,8 @@ class Gp2AnimehairOperator(bpy.types.Operator):
         bpy.ops.object.gp2line(my_irinuki=self.my_irinuki_2, my_simple_err=self.my_simple_err_2, my_digout=self.my_digout_2, my_reso=self.my_reso_2)
         bpy.ops.object.animehair(my_int_bevelType=self.my_int_bevelType_2, my_int_taparType=self.my_int_taparType_2,\
          my_float_x=self.my_float_x_2, my_float_y=self.my_float_y_2, my_float_weight=self.my_float_weight_2, my_float_mass=self.my_float_mass_2, my_float_goal_friction=self.my_float_goal_friction_2,\
-         my_simple_flag=self.my_simple_flag, my_simple_err=self.my_simple_err, my_digout=self.my_digout, my_reso=self.my_reso)
+         my_simple_flag=self.my_simple_flag, my_simple_err=self.my_simple_err, my_digout=self.my_digout, my_reso=self.my_reso,
+         my_beziers_auto = self.my_beziers_auto)
         return {'FINISHED'}
         
     def invoke(self, context, event):
