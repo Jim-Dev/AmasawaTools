@@ -14,12 +14,13 @@ import numpy as np
 import random
 import copy
 from math import radians
+import bmesh
 
 bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (1, 1, 5),
+    "version": (1, 1, 8),
     "blender": (2, 7, 7),
     "location": "View3D > Toolbar",
     "warning": "",
@@ -139,12 +140,11 @@ def curveConvert(curveobjs,meshFlag=False,fullFlag=False,boneName='nashi',
                             baseMesh.data.vertices[-1].co[1],
                             baseMesh.data.vertices[-1].co[2]]
             #基準辺の削除
-            bpy.ops.object.mode_set(mode='OBJECT')
+            bpy.ops.object.editmode_toggle()
             bpy.ops.object.select_all(action='DESELECT')
             bpy.context.scene.objects.active = baseMesh
             bpy.ops.object.select_pattern(pattern=baseMesh.name, case_sensitive=False, extend=False)
             bpy.ops.object.delete(use_global=False)
-            bpy.ops.object.mode_set(mode='OBJECT')
             
         else:
             #Fullモード以外ではスプラインからアーマチュアを作る
@@ -204,9 +204,9 @@ def curveConvert(curveobjs,meshFlag=False,fullFlag=False,boneName='nashi',
                 lastBone.tail = [newSpline.bezier_points[-1].co[0],
                                 newSpline.bezier_points[-1].co[1],
                                 newSpline.bezier_points[-1].co[2]]
+            bpy.ops.object.editmode_toggle()
         activeAma.data.draw_type = "STICK"
         #アーマチュアにスプラインIKをセット
-        bpy.ops.object.mode_set(mode='OBJECT')
         bpy.ops.object.select_all(action='DESELECT')
         bpy.context.scene.objects.active = activeAma
         bpy.ops.object.select_pattern(pattern=activeAma.name, case_sensitive=False, extend=False)
@@ -321,11 +321,9 @@ def curveConvert(curveobjs,meshFlag=False,fullFlag=False,boneName='nashi',
         pmesh.modifiers[-1].object = pama
         pmesh.hide_select = hideSelect
     #選択をEmptyに
-    bpy.ops.object.mode_set(mode='OBJECT')
     bpy.ops.object.select_all(action='DESELECT')
     bpy.context.scene.objects.active = emptyobj
     bpy.ops.object.select_pattern(pattern=emptyobj.name, case_sensitive=False, extend=False)
-    bpy.ops.object.mode_set(mode='OBJECT')
     
         
 #Bevel用のカーブを作成する
@@ -394,7 +392,8 @@ class AnimeHairOperator(bpy.types.Operator):
         	bpy.ops.object.convert(target='CURVE')
         
         #NurbsかBeziersに変換
-        bpy.ops.object.mode_set(mode='EDIT')
+        bpy.ops.object.editmode_toggle()
+        
         if self.my_beziers_auto:
             for s in active.data.splines:
                 s.type = 'BEZIER'
@@ -404,7 +403,8 @@ class AnimeHairOperator(bpy.types.Operator):
                     p.handle_right_type = 'AUTO'
         else:
             bpy.ops.curve.spline_type_set(type='NURBS') 
-        bpy.ops.object.mode_set(mode='OBJECT')
+        bpy.ops.object.editmode_toggle()
+
         
         #指定された場合カーブをシンプル化
         if self.my_simple_flag:
@@ -2206,18 +2206,38 @@ class MakeBuildings(bpy.types.Operator):
     bl_space_type = "VIEW_3D"
     bl_region_type = "TOOLS"
     
+    tex_items = [('CLOUDS','CLOUDS','',1), ('DISTORTED_NOISE','DISTORTED_NOISE','',2),
+                ('STUCCI','STUCCI','',3)]
+    tex_noisetype_items = [('SOFT_NOISE','SOFT_NOISE','',1),('HARD_NOISE','HARD_NOISE','',2)]
+    
     my_subdiv = bpy.props.IntProperty(name="subdivision",default=30,description="分割数",min=1)
-    my_cloudSize = bpy.props.FloatProperty(name="Clund Size",default=1)
-    my_cloudDepth = bpy.props.IntProperty(name="Clund Depth",default=4)
-    my_dispStrength = bpy.props.FloatProperty(name="Clund Size",default=6.0)
+    my_texType = bpy.props.EnumProperty(items=tex_items,name="Tex Type",default='CLOUDS')
+    my_texNoiseType = bpy.props.EnumProperty(items=tex_noisetype_items,name="Noise Type",default='HARD_NOISE')
+    my_useCellNoise = bpy.props.BoolProperty(default=False,name="use Cell Noise")
+    my_cloudSize = bpy.props.FloatProperty(name="Tex Size",default=1,min=0)
+    my_cloudDepth = bpy.props.IntProperty(name="Tex Depth",default=4,min=0)
+    my_texDistortion = bpy.props.FloatProperty(name="Tex Distortion",default=1,min=0)
+    my_texTurbulence = bpy.props.FloatProperty(name="Tex Turbulence",default=5,min=0)
+    my_dispStrength = bpy.props.FloatProperty(name="Disp Strength",default=6.0)
     my_angleLimit = bpy.props.FloatProperty(name="Angle Limit",default=1,min=0,max=3.14)
     my_use_dissolve_boundaries = bpy.props.BoolProperty(name="All Boundaries",default=True)
     my_step = bpy.props.IntProperty(name="Step",default=10,min=0)
     my_step_hight = bpy.props.FloatProperty(name="Step Hight",default=0.3)
+    my_step_hight_rand = bpy.props.FloatProperty(name="Step Hight rand",default=0.0,min=0)
     my_stepSelectPercent = bpy.props.IntProperty(name="Step Select Percent",default=50,min=0,max=100)
     my_stepSelectSeed = bpy.props.IntProperty(name="Step Select Seed",default=1,min=1)
     my_polysaku = bpy.props.BoolProperty(default=True,name="Decimate")
     my_useselect = bpy.props.BoolProperty(default=False,name="use Select")
+    my_useVertexG = bpy.props.BoolProperty(default=False,name="use Active Vertex Groups")
+    my_useVertNum = bpy.props.IntProperty(name="use Vertex Number",default=2,min=2,
+                    description="この数以上の頂点のある面は押し上げない")
+    my_useToSphere = bpy.props.FloatProperty(name="use To Sphere",default=0,min=0,max=1)
+    my_useSmooth = bpy.props.FloatProperty(name="use Smooth",default=0,min=0)
+    my_setRoofTopSize = bpy.props.FloatProperty(name="set Roof Top Size",default=0.003,min=0,step=0.1)
+    my_setRoofTopMate = bpy.props.BoolProperty(default=True,name="set Roof Top Material")
+    my_delUnder = bpy.props.BoolProperty(default=True,name="Del Under")
+   
+    
     
     def execute(self, context):
         if self.my_useselect == False:
@@ -2230,14 +2250,36 @@ class MakeBuildings(bpy.types.Operator):
         act_obj.show_wire = True
         act_obj.show_all_edges = True
         bpy.ops.object.modifier_add(type='DISPLACE')
+        
+        if self.my_useselect and self.my_useVertexG:
+            if act_obj.vertex_groups.active != None:
+                actVGname = act_obj.vertex_groups.active.name
+                act_obj.modifiers[-1].vertex_group = actVGname
+                act_obj.modifiers[-1].mid_level = 0
+        
         bpy.ops.texture.new()
         tex = bpy.data.textures[-1]
         disp = act_obj.modifiers[-1]
-        tex.type = 'CLOUDS'
+        tex.type = self.my_texType
         disp.strength = self.my_dispStrength
-        bpy.data.textures[tex.name].noise_type = 'HARD_NOISE'
-        bpy.data.textures[tex.name].noise_scale = self.my_cloudSize
-        bpy.data.textures[tex.name].noise_depth = self.my_cloudDepth
+        if self.my_texType == 'CLOUDS':
+            bpy.data.textures[tex.name].noise_type = self.my_texNoiseType
+            bpy.data.textures[tex.name].noise_scale = self.my_cloudSize
+            bpy.data.textures[tex.name].noise_depth = self.my_cloudDepth
+            if self.my_useCellNoise:
+                bpy.data.textures[tex.name].noise_basis = 'CELL_NOISE'
+        elif self.my_texType == 'DISTORTED_NOISE':
+            bpy.data.textures[tex.name].distortion = self.my_texDistortion
+            bpy.data.textures[tex.name].noise_scale = self.my_cloudSize
+            if self.my_useCellNoise:
+                bpy.data.textures[tex.name].noise_basis = 'CELL_NOISE'
+        elif self.my_texType == 'STUCCI':
+            bpy.data.textures[tex.name].noise_type = self.my_texNoiseType
+            bpy.data.textures[tex.name].noise_scale = self.my_cloudSize
+            bpy.data.textures[tex.name].turbulence = self.my_texTurbulence
+            if self.my_useCellNoise:
+                bpy.data.textures[tex.name].noise_basis = 'CELL_NOISE'
+                
         disp.texture = tex
         
         #ポリゴン数削減
@@ -2263,18 +2305,70 @@ class MakeBuildings(bpy.types.Operator):
         bpy.ops.object.editmode_toggle()
         
         #ランダム選択->引き伸ばし
-        bpy.ops.mesh.select_all(action="SELECT")
+        if self.my_useVertNum >= 3:
+            bpy.ops.mesh.select_face_by_sides(number=self.my_useVertNum, type='LESS',
+            extend=False)
+        else:
+            bpy.ops.mesh.select_all(action="SELECT")
+        #球形に変形
+        if self.my_useToSphere > 0:
+            bpy.ops.transform.tosphere(value=self.my_useToSphere, mirror=False, proportional='DISABLED',
+            proportional_edit_falloff='SMOOTH', proportional_size=1)
+        #スムーズをかける
+        if self.my_useSmooth > 0:
+            bpy.ops.mesh.vertices_smooth(factor=self.my_useSmooth, repeat=3)
+
         for i in range(self.my_step):
             bpy.ops.mesh.select_random(percent=self.my_stepSelectPercent,
              seed=self.my_stepSelectSeed, action='DESELECT')
+            random.seed()
+            rand = 1+random.uniform(-self.my_step_hight_rand,self.my_step_hight_rand)
             bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"mirror":False},
-             TRANSFORM_OT_translate={"value":(0.0, 0.0, self.my_step_hight),
+             TRANSFORM_OT_translate={"value":(0.0, 0.0, self.my_step_hight*rand),
              "constraint_axis":(False, False, True), "constraint_orientation":'NORMAL',
              "mirror":False, "proportional":'DISABLED', "proportional_edit_falloff":'SMOOTH',
              "proportional_size":1, "snap":False, "snap_target":'CLOSEST', "snap_point":(0, 0, 0),
              "snap_align":False, "snap_normal":(0, 0, 0), "gpencil_strokes":False, "texture_space":False,
              "remove_on_cancel":False, "release_confirm":False})
         
+        #一番下の面を削除
+        if self.my_delUnder:
+            bpy.ops.mesh.select_all(action='DESELECT')
+            bm = bmesh.from_edit_mesh(bpy.context.object.data)
+            for f in bm.faces:
+                if  0.95 < f.normal.z and f.normal.z < 1.05:
+                    if f.calc_center_median().z <= 0.01:
+                        f.select = True
+            bpy.ops.mesh.delete(type='FACE')
+        #マテリアルを設定
+        if self.my_setRoofTopMate:
+            bpy.ops.object.material_slot_add()
+            bpy.ops.object.material_slot_add()
+            bpy.ops.mesh.select_all(action='DESELECT')
+            bm = bmesh.from_edit_mesh(bpy.context.object.data)
+            for f in bm.faces:
+                if  0.95 < f.normal.z and f.normal.z < 1.05:
+                    f.select = True
+            bpy.ops.object.material_slot_assign()
+        #屋上を作る
+        if self.my_setRoofTopSize > 0:
+            bpy.ops.mesh.select_all(action='DESELECT')
+            bm = bmesh.from_edit_mesh(bpy.context.object.data)
+            for f in bm.faces:
+                if  0.95 < f.normal.z and f.normal.z < 1.05:
+                    f.select = True
+            bpy.ops.mesh.select_axis(mode='POSITIVE', axis='Z_AXIS', threshold=0.0001)
+            bpy.ops.mesh.inset(thickness=self.my_setRoofTopSize)
+            bpy.ops.mesh.extrude_region_move(MESH_OT_extrude_region={"mirror":False},
+                TRANSFORM_OT_translate={"value":(0, -0, -0.0115835),
+                "constraint_axis":(False, False, True), "constraint_orientation":'NORMAL',
+                "mirror":False, "proportional":'DISABLED', "proportional_edit_falloff":'SMOOTH',
+                "proportional_size":1, "snap":False, "snap_target":'CLOSEST',
+                "snap_point":(0, 0, 0), "snap_align":False, "snap_normal":(0, 0, 0),
+                "gpencil_strokes":False, "texture_space":False, "remove_on_cancel":False,
+                "release_confirm":False})
+
+        bpy.ops.mesh.select_all(action='DESELECT')
         bpy.ops.object.editmode_toggle()
         
         #ポリゴン数削減して平面を一つに
@@ -2282,7 +2376,6 @@ class MakeBuildings(bpy.types.Operator):
             bpy.ops.object.modifier_add(type='DECIMATE')
             act_obj.modifiers[-1].decimate_type = 'DISSOLVE'
             bpy.ops.object.modifier_apply(apply_as='DATA', modifier=act_obj.modifiers[-1].name)
-
         
         return {'FINISHED'}
     
