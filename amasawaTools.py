@@ -15,19 +15,24 @@ import random
 import copy
 from math import radians
 import bmesh
+from bpy.types import WindowManager
+from freestyle.types import Operators
+from freestyle.predicates import *
+import parameter_editor
+from bpy.props import *
 
 bl_info = {
     "name": "AmasawaTools",
     "description": "",
     "author": "AmasawaRasen",
-    "version": (1, 1, 8),
-    "blender": (2, 7, 7),
+    "version": (1, 5, 1),
+    "blender": (2, 7, 8),
     "location": "View3D > Toolbar",
     "warning": "",
     "wiki_url": "",
     "tracker_url": "",
     "category": "Object"}
-
+    
 #パスを作る関数
 def make_Path(verts):
     bpy.ops.curve.primitive_nurbs_path_add(radius=1, view_align=False, enter_editmode=False, location=(0, 0, 0), layers=(False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, True, False))
@@ -364,7 +369,7 @@ class AnimeHairOperator(bpy.types.Operator):
     bl_options = {'REGISTER','UNDO'}
     bl_description = "メッシュの辺をアニメ風の髪の毛に変換"
 
-    my_int_bevelType = bpy.props.IntProperty(name="BevelType",min=0,max=13)
+    my_int_bevelType = bpy.props.IntProperty(name="BevelType",min=0,max=14)
     my_int_taparType = bpy.props.IntProperty(name="TaperType",min=0,max=7)
     my_float_x = bpy.props.FloatProperty(name="X",default=1.0,min=0.0)
     my_float_y = bpy.props.FloatProperty(name="Y",default=1.0,min=0.0)
@@ -540,6 +545,9 @@ class AnimeHairOperator(bpy.types.Operator):
             (0.036853,0.017497,0.0,1.0),(0.064691,0.0,0.0,1.0),(0.092529,0.017639,0.0,1.0),
             (0.120367,0.0,0.0,1.0),(0.148206,0.017782,0.0,1.0),(0.176044,0.0,0.0,1.0),
             (0.203882,0.017924,0.0,1.0),(0.23172,0.0,0.0,1.0)]
+            make_bevelCurve(verts,False,2,1,'POLY')
+        elif self.my_int_bevelType == 14:
+            verts = [(-0.1,0,0,1),(0.1,0,0,1)]
             make_bevelCurve(verts,False,2,1,'POLY')
         else:
             print("errer 02")
@@ -1655,7 +1663,6 @@ class Gp2LineOperator(bpy.types.Operator):
             active_gp = bpy.context.scene.grease_pencil.layers.active
         else:
             active_gp = bpy.context.object.grease_pencil.layers.active
-
         if active_gp.active_frame != None:
             #空のカーブを作成
             bpy.ops.curve.primitive_nurbs_path_add()
@@ -1674,7 +1681,6 @@ class Gp2LineOperator(bpy.types.Operator):
                 newSpline.points.add(len(stroke.points)-1)
                 for sPoint,newPoint in zip(stroke.points,newSpline.points):
                     newPoint.co = [sPoint.co[0],sPoint.co[1],sPoint.co[2],1.0]
-            
             #カーブの各スプラインを接続する
             if self.my_strokeLink:
                 #空のカーブを作成
@@ -1703,7 +1709,6 @@ class Gp2LineOperator(bpy.types.Operator):
                 bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
                 bpy.ops.object.delete()
                 curve = curve3
-                
             #原点を中心に移動
             bpy.context.scene.objects.active = curve
             bpy.ops.object.select_pattern(pattern=curve.name, case_sensitive=False, extend=False)
@@ -1740,7 +1745,6 @@ class Gp2LineOperator(bpy.types.Operator):
                     if len(spline.points) > 2:
                         spline.points[0].radius = 0.0
                         spline.points[-1].radius = 0.0
-            
             bpy.context.scene.objects.active = curve2
             bpy.ops.object.select_pattern(pattern=curve2.name, case_sensitive=False, extend=False)
             
@@ -1833,7 +1837,7 @@ class Gp2AnimehairOperator(bpy.types.Operator):
     my_digout_2 = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
     my_reso_2 = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
     #アニメヘアー用の設定
-    my_int_bevelType_2 = bpy.props.IntProperty(name="BevelType",min=0,max=13)
+    my_int_bevelType_2 = bpy.props.IntProperty(name="BevelType",min=0,max=14)
     my_int_taparType_2 = bpy.props.IntProperty(name="TaperType",min=0,max=7)
     my_float_x_2 = bpy.props.FloatProperty(name="X",default=1.0,min=0.0)
     my_float_y_2 = bpy.props.FloatProperty(name="Y",default=1.0,min=0.0)
@@ -1860,6 +1864,117 @@ class Gp2AnimehairOperator(bpy.types.Operator):
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
         
+#カーブをグリースペンシルに変換
+class Curve2GPOperator(bpy.types.Operator):
+    bl_idname = "object.curve2gp"
+    bl_label = "curve -> greasePencil"
+    bl_options = {'REGISTER','UNDO'}
+    bl_description = "カーブをグリースペンシルに変換"
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_loop = bpy.props.BoolProperty(default=False,name="loop")
+    my_line_width = bpy.props.IntProperty(name="Line Width",default=3,description="",min=0,step=1)
+    my_edgeStroke = bpy.props.BoolProperty(default=False,name="Edge Stroke")
+    
+    def execute(self, context):
+        #カーブをメッシュに変換
+        active_obj = bpy.context.scene.objects.active
+        if active_obj.type != 'CURVE':
+            return {'FINISHED'}
+        bpy.ops.object.duplicate_move(OBJECT_OT_duplicate={"linked":False, "mode":'TRANSLATION'},
+        TRANSFORM_OT_translate={"value":(0, 0, 0), "constraint_axis":(False, False, False),
+        "constraint_orientation":'GLOBAL', "mirror":False, "proportional":'DISABLED',
+        "proportional_edit_falloff":'SMOOTH', "proportional_size":1, "snap":False,
+        "snap_target":'CLOSEST', "snap_point":(0, 0, 0), "snap_align":False,
+        "snap_normal":(0, 0, 0), "gpencil_strokes":False, "texture_space":False,
+        "remove_on_cancel":False, "release_confirm":False})
+        dup_obj = bpy.context.scene.objects.active
+        dup_obj.data.bevel_depth = 0.0
+        dup_obj.data.bevel_object = None
+        bpy.ops.object.convert(target='MESH')
+        bpy.ops.object.editmode_toggle()
+        bpy.ops.mesh.select_all(action='SELECT')
+        bpy.ops.mesh.separate(type='LOOSE')
+        bpy.ops.object.editmode_toggle()
+        dupObjList = bpy.context.selected_objects
+        #メッシュをグリースペンシルに変換
+        scene = bpy.context.scene
+        if scene.grease_pencil == None:
+            bpy.ops.gpencil.data_add()
+        layer = scene.grease_pencil.layers.new("Curve", set_active=True)
+        frame = layer.frames.new(scene.frame_current)
+        if len(bpy.context.scene.grease_pencil.palettes) <= 0:
+            bpy.ops.gpencil.palette_add()
+        if len(bpy.context.scene.grease_pencil.palettes.active.colors) <= 0:
+            bpy.ops.gpencil.palettecolor_add()
+        gpColor = bpy.context.scene.grease_pencil.palettes.active.colors.active
+        if self.my_edgeStroke != True:
+            for d in dupObjList:
+                stroke = frame.strokes.new()
+                stroke.draw_mode = '3DSPACE'
+                stroke.line_width = self.my_line_width
+                stroke.colorname = gpColor.name
+                stroke.points.add(len(d.data.vertices))
+                for i,v in enumerate(d.data.vertices):
+                    stroke.points[i].co = d.matrix_world * Vector(v.co)
+                    stroke.points[i].strength = 1
+                    stroke.points[i].pressure = 1
+                if self.my_loop:
+                    stroke.points.add(1)
+                    stroke.points[-1].co = d.matrix_world * Vector(d.data.vertices[0].co)
+                    stroke.points[-1].strength = 1
+                    stroke.points[-1].pressure = 1
+        else:
+            for d in dupObjList:
+                mesh = d.data
+                for edge in mesh.edges:
+                    stroke = frame.strokes.new()
+                    stroke.draw_mode = '3DSPACE'
+                    stroke.line_width = self.my_line_width
+                    stroke.colorname = gpColor.name
+                    stroke.points.add(2)
+                    stroke.points[0].co = d.matrix_world * Vector(mesh.vertices[edge.vertices[0]].co)
+                    stroke.points[0].strength = 1
+                    stroke.points[0].pressure = 1
+                    stroke.points[1].co = d.matrix_world * Vector(mesh.vertices[edge.vertices[1]].co)
+                    stroke.points[1].strength = 1
+                    stroke.points[1].pressure = 1
+                if self.my_loop:
+                    stroke = frame.strokes.new()
+                    stroke.draw_mode = '3DSPACE'
+                    stroke.line_width = self.my_line_width
+                    stroke.colorname = gpColor.name
+                    stroke.points.add(2)
+                    stroke.points[0].co = d.matrix_world * Vector(mesh.vertices[-1].co)
+                    stroke.points[0].strength = 1
+                    stroke.points[0].pressure = 1
+                    stroke.points[1].co = d.matrix_world * Vector(mesh.vertices[0].co)
+                    stroke.points[1].strength = 1
+                    stroke.points[1].pressure = 1
+        #いらない変換後のカーブは消去
+        #(いっぺんに消すとフリーズするのでレイヤーを移動させてハイド)
+        bpy.ops.object.select_all(action='DESELECT')
+        for d in dupObjList:
+            bpy.context.scene.objects.active = d
+            bpy.ops.object.select_pattern(pattern=d.name, case_sensitive=True, extend=True)
+            bpy.ops.object.move_to_layer(layers=(False, False, False, False, False,
+             False, False, False, False, False, False, False, False, False,
+             False, False, False, False, False, True))
+            bpy.context.object.hide_render = True
+#            bpy.ops.object.unlink_data()
+#            bpy.data.objects.is_updated = True
+#            bpy.data.objects.remove(d,True)
+        #bpy.ops.object.join()
+#        bpy.ops.object.delete()
+        bpy.context.scene.objects.active = active_obj
+        bpy.ops.object.select_pattern(pattern=active_obj.name, case_sensitive=False, extend=False)
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
 def menu_draw( self, context ): 
     self.layout.operator_context = 'INVOKE_REGION_WIN' 
     self.layout.operator( MakePIOperator.bl_idname, "make PI" ) 
@@ -1881,8 +1996,30 @@ class Crease2LineOperator(bpy.types.Operator):
     my_digout = bpy.props.IntProperty(default=0,name="digout",min=0) #次数
     my_thick=bpy.props.FloatProperty(name="line thick",default=0.005,min=0.00)
     my_reso = bpy.props.IntProperty(default=3,name="resolusion",min=0) #カーブの解像度
+    my_toGP = bpy.props.BoolProperty(default=False,name="Conversion to GP")
+    my_loopGP = bpy.props.BoolProperty(default=False,name="GP Loop")
+    my_lineWidth = bpy.props.IntProperty(default=3,name="GP Line Width",min=0) 
     
     def execute(self, context):
+        active = bpy.context.scene.objects.active
+        #オブジェクトを複数選択していた場合は
+        #コピーしてブーリアン
+        booleanFlag = False
+        if len(bpy.context.selected_objects) >= 2:
+            objs = bpy.context.selected_objects
+            bpy.ops.object.select_all(action='TOGGLE')
+            bpy.context.scene.objects.active = active
+            bpy.ops.object.select_pattern(pattern=active.name, case_sensitive=False, extend=False)
+            bpy.ops.object.duplicate()
+            dup_active = bpy.context.scene.objects.active
+            for o in objs:
+                if o == active:
+                    continue
+                bpy.ops.object.modifier_add(type='BOOLEAN')
+                dup_active.modifiers[-1].operation = 'UNION'
+                dup_active.modifiers[-1].object = o
+                bpy.ops.object.convert(target='MESH')
+            booleanFlag = True
         #編集モードに以降
         bpy.ops.object.editmode_toggle()
         #デフォルトで選択されている辺を使うか使わないか
@@ -1898,7 +2035,7 @@ class Crease2LineOperator(bpy.types.Operator):
         except:
             bpy.ops.object.editmode_toggle()
             return {'FINISHED'}
-            
+        
         #選択した辺を複製
         bpy.ops.mesh.duplicate_move(MESH_OT_duplicate={"mode":1}, TRANSFORM_OT_translate={"value":(0, 0, 0), "constraint_axis":(False, False, False),\
          "constraint_orientation":'GLOBAL', "mirror":False, "proportional":'DISABLED', "proportional_edit_falloff":'SMOOTH', "proportional_size":1,\
@@ -1945,7 +2082,22 @@ class Crease2LineOperator(bpy.types.Operator):
         bpy.ops.object.select_pattern(pattern=curve2.name, case_sensitive=False, extend=False)
         bpy.ops.object.origin_set(type='ORIGIN_GEOMETRY')
         
+        #コピーしていたものを消す
+        if booleanFlag:
+            bpy.context.scene.objects.active = dup_active
+            bpy.ops.object.select_pattern(pattern=dup_active.name, case_sensitive=False, extend=False)
+            bpy.ops.object.delete(use_global=False)
+        
+        bpy.context.scene.objects.active = curve2
         bpy.ops.object.select_pattern(pattern=curve2.name, case_sensitive=False, extend=False)
+        
+        #グリースペンシルに変換
+        if self.my_toGP:
+            bpy.ops.object.curve2gp(my_line_width = self.my_lineWidth,my_loop = self.my_loopGP)
+            bpy.ops.object.delete(use_global=False)
+            bpy.context.scene.objects.active = active
+            bpy.ops.object.select_pattern(pattern=active.name, case_sensitive=False, extend=False)
+            
         return {'FINISHED'}
         
     def invoke(self, context, event):
@@ -1968,6 +2120,8 @@ class SetCamelattice(bpy.types.Operator):
     my_latw = bpy.props.IntProperty(name="Lattice_v",default=1,description="ラティスの奥ゆき",min=1)
     my_setLattice = bpy.props.BoolProperty(name="set Lattice",default=False,\
         description="選択したオブジェクトにラティスを設定")
+    my_setLatticeAll = bpy.props.BoolProperty(name="set Lattice All",default=False,\
+        description="表示されている全てのメッシュオブジェクトにラティスを設定")
     
     def execute(self, context):
         #選択オブジェクトはラティスを設定するときに使う
@@ -2017,7 +2171,19 @@ class SetCamelattice(bpy.types.Operator):
                 bpy.ops.object.select_pattern(pattern=obj.name, case_sensitive=False, extend=False)
                 bpy.ops.object.modifier_add(type='LATTICE')
                 obj.modifiers[-1].object = lat
-
+        #表示されている全てのメッシュオブジェクトにラティスを設定
+        elif self.my_setLatticeAll:
+            viewObjList = []
+            viewLayers = bpy.context.scene.layers
+            for o in bpy.context.scene.objects:
+                if (o.type == 'MESH' or o.type == 'CURVE') and o.hide == False and o.hide_render == False:
+                    for i,l in enumerate(viewLayers):
+                        if l == True and o.layers[i] == True:
+                            bpy.ops.object.select_all(action='DESELECT')
+                            bpy.context.scene.objects.active = o
+                            bpy.ops.object.select_pattern(pattern=o.name, case_sensitive=False, extend=False)
+                            bpy.ops.object.modifier_add(type='LATTICE')
+                            o.modifiers[-1].object = lat
         bpy.context.scene.objects.active = lat
         bpy.ops.object.select_pattern(pattern=lat.name, case_sensitive=False, extend=False)
         return {'FINISHED'}
@@ -2040,6 +2206,23 @@ class SetCamelattice(bpy.types.Operator):
         wm = context.window_manager
         return wm.invoke_props_dialog(self)
     
+#オブジェクトが設定されていない全てのラティスを削除
+class DelNonelattice(bpy.types.Operator):
+    bl_idname = "object.delnonelattice"
+    bl_label = "del None Lattice"
+    bl_description = "オブジェクトが設定されていない全てのラティスを削除"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    def execute(self, context):
+        for o in bpy.context.scene.objects:
+            for m in o.modifiers:
+                if m.type == 'LATTICE' :
+                    if m.object == None:
+                        o.modifiers.remove(m)
+        return {'FINISHED'}
+
 #ランダム値が乗算された配列複製
 class RandArray(bpy.types.Operator):
     bl_idname = "object.randarray"
@@ -2425,7 +2608,725 @@ class MakeMakeThreeViews(bpy.types.Operator):
         active.modifiers[-1].thickness = 4      
 
         return {'FINISHED'}
-     
+    
+#カーブをツイストさせる
+class CurveTwist(bpy.types.Operator):
+    bl_idname = "object.curvetwist"
+    bl_label = "CurveTwist"
+    bl_description = "カーブをツイストさせる"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_easeNo = bpy.props.IntProperty(name="Ease No",default=1,max=22,min=1)
+    my_wave = bpy.props.FloatProperty(name="wave",default=2,max=10,min=-10)
+    my_curveValue = bpy.props.FloatProperty(name="curveValue",default=2,max=4,min=-4)
+    
+    def execute(self, context):
+        #カーブ一本一本ごとに処理を行う
+        splines = bpy.context.scene.objects.active.data.splines
+        for s in splines:
+            #どの頂点が選択されているかを確かめる
+            select_p = []
+            if s.type == "BEZIER":
+                for p in s.bezier_points:
+                    if p.select_control_point == True:
+                        select_p.append(p)
+            else:
+                for p in s.points:
+                    if p.select == True:
+                        select_p.append(p)
+            for i,sp in enumerate(select_p):
+                #数値に合わせて頂点に回転を設定
+                #kaiten = (((1/(i+1))**self.my_curveValue))*self.my_multiply
+                ease_no = self.my_easeNo
+                if ease_no== 20 or ease_no== 22:
+                    ease_no = 1
+                kaiten = getEasing(i,0,self.my_curveValue,self.my_wave,ease_no=ease_no)
+                sp.tilt = kaiten
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+#イージング処理
+#t:時間 b:開始の値 c:開始と終了の値の差分 d:合計時間
+def getEasing(t,b,c,d,ease_type="",ease_no=0):
+    if ease_type == "Linear" or ease_no==1:
+        return c*t/d + b
+    elif ease_type == "Quadratic_in" or ease_no==2:
+        t /= d
+        return c*t*t + b
+    elif ease_type == "Quadratic_out" or ease_no==3:
+        t /= d
+        return -c*t*(t-2.0) + b
+    elif ease_type == "Quadratic_in_out" or ease_no==4:
+        t /= d/2.0
+        if t < 1:
+            return c/2.0*t*t + b
+        t = t - 1
+        return -c/2.0 * (t*(t-2) - 1) + b
+    
+    elif ease_type == "Cubic_in" or ease_no==5:
+        t /= d
+        return c*t*t*t + b
+    elif ease_type == "Cubic_out" or ease_no==6:
+        t /= d
+        t = t - 1
+        return c*(t*t*t + 1) + b
+    elif ease_type == "Cubic_in_out" or ease_no==7:
+        t /= d/2.0
+        if t < 1:
+            return c/2.0*t*t*t + b
+        t = t - 2
+        return c/2.0 * (t*t*t + 2) + b
+    
+    elif ease_type == "Quartic_in" or ease_no==8:
+        t /= d
+        return c*t*t*t*t + b
+    elif ease_type == "Quartic_out" or ease_no==9:
+        t /= d
+        t = t - 1
+        return -c*(t*t*t*t - 1) + b
+    elif ease_type == "Quartic_in_out" or ease_no==10:
+        t /= d/2.0
+        if t < 1:
+            return c/2.0*t*t*t*t + b
+        t = t - 2
+        return -c/2.0 * (t*t*t*t - 2) + b
+    
+    elif ease_type == "Quintic_in" or ease_no==11:
+        t /= d
+        return c*t*t*t*t*t + b
+    elif ease_type == "Quintic_out" or ease_no==12:
+        t /= d
+        t = t - 1
+        return c*(t*t*t*t*t + 1) + b
+    elif ease_type == "Quintic_in_out" or ease_no==13:
+        t /= d/2.0
+        if t < 1:
+            return c/2.0*t*t*t*t*t + b
+        t = t - 2
+        return c/2.0 * (t*t*t*t*t + 2) + b
+    
+    elif ease_type == "Sinusoidal_in" or ease_no==14:
+        return -c * math.cos(t/d * (math.pi/2.0)) + c + b
+    elif ease_type == "Sinusoidal_out" or ease_no==15:
+        return c * math.sin(t/d * (math.pi/2.0)) + b
+    elif ease_type == "Sinusoidal_in_out" or ease_no==16:
+        return -c/2.0 * (math.cos(math.pi*t/d) - 1) + b
+    
+    elif ease_type == "Exponential_in" or ease_no==17:
+        return c * 2**(10*(t/d - 1)) + b
+    elif ease_type == "Exponential_out" or ease_no==18:
+        return c * (-(2.0**(-10.0 * t/d)) + 1) + b
+    elif ease_type == "Exponential_in_out" or ease_no==19:
+        t /= d/2.0
+        if t < 1:
+            return c/2.0 * 2.0**(10.0 * (t-1)) + b
+        t = t - 1
+        return c/2.0 * (-(2**(-10*t)) + 2 ) + b
+    
+    elif ease_type == "Circular_in" or ease_no==20:
+        t /= d
+        return -c * (math.sqrt(1 - t*t) - 1) + b
+    elif ease_type == "Circular_out" or ease_no==21:
+        t /= d
+        t = t - 1
+        return c * math.sqrt(1 - t*t) + b
+    elif ease_type == "Circular_in_out" or ease_no==22:
+        t /= d/2.0
+        if t < 1:
+            return -c/2.0 * (math.sqrt(1 - t*t) - 1)
+        t = t - 2	
+        return c/2.0 * (math.sqrt(1 - t*t) + 1) + b
+    
+    else:
+        return c*t/d + b
+    
+    #該当なしの時はリニア
+    return c*t/d + b
+#選択中のカーブの傾きをリセット
+class CurveTwistReset(bpy.types.Operator):
+    bl_idname = "object.curvetwistreset"
+    bl_label = "CurveTwistReset"
+    bl_description = "カーブの傾きをリセットする"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    def execute(self, context):
+        #カーブ一本一本ごとに処理を行う
+        splines = bpy.context.scene.objects.active.data.splines
+        for s in splines:
+            #どの頂点が選択されているかを確かめる
+            select_p = []
+            if s.type == "BEZIER":
+                for p in s.bezier_points:
+                    if p.select_control_point == True:
+                        select_p.append(p)
+            else:
+                for p in s.points:
+                    if p.select == True:
+                        select_p.append(p)
+            for i,sp in enumerate(select_p):
+                #回転をリセット
+                sp.tilt = 0
+        return {'FINISHED'}
+
+#選択中のカーブの半径を設定
+class SetCurveRadius(bpy.types.Operator):
+    bl_idname = "object.setcurveradius"
+    bl_label = "SetCurveRadius"
+    bl_description = "選択中のカーブの半径を設定"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_wave = bpy.props.FloatProperty(name="wave",default=2,max=10,min=-10)
+    my_curveValue = bpy.props.FloatProperty(name="curveValue",default=2,max=4,min=-4)
+    
+    def execute(self, context):
+        #カーブ一本一本ごとに処理を行う
+        splines = bpy.context.scene.objects.active.data.splines
+        for s in splines:
+            #どの頂点が選択されているかを確かめる
+            select_p = []
+            if s.type == "BEZIER":
+                for p in s.bezier_points:
+                    if p.select_control_point == True:
+                        select_p.append(p)
+            else:
+                for p in s.points:
+                    if p.select == True:
+                        select_p.append(p)
+            for i,sp in enumerate(select_p):
+                #数値に合わせて頂点に半径を設定
+                hankei = (((1/(i+1))**self.my_curveValue))*self.my_wave
+                sp.radius = hankei
+            if len(select_p) > 0:
+                select_p[-1].radius = 0
+        return {'FINISHED'}
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+#選択中のカーブの次数を設定
+class SetCurveOrderU(bpy.types.Operator):
+    bl_idname = "object.setcurveorderu"
+    bl_label = "SetCurveOrderU"
+    bl_description = "選択中のカーブの次数を設定"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_orderu = bpy.props.IntProperty(name="multiply",default=3,max=64,min=-0)
+    
+    def execute(self, context):
+        #カーブ一本一本ごとに処理を行う
+        splines = bpy.context.scene.objects.active.data.splines
+        for s in splines:
+            #どの頂点が選択されているかを確かめる
+            if s.type == "BEZIER":
+                for p in s.bezier_points:
+                    if p.select_control_point == True:
+                        s.order_u = self.my_orderu
+            else:
+                for p in s.points:
+                    if p.select == True:
+                        s.order_u = self.my_orderu
+                
+        return {'FINISHED'}
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+#選択中のカーブの解像度を設定
+class SetCurveResolutionU(bpy.types.Operator):
+    bl_idname = "object.setcurveresolutionu"
+    bl_label = "SetCurveResolutionU"
+    bl_description = "選択中のカーブの解像度を設定"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_resolution_u = bpy.props.IntProperty(name="multiply",default=3,max=64,min=-0)
+    
+    def execute(self, context):
+        #カーブ一本一本ごとに処理を行う
+        splines = bpy.context.scene.objects.active.data.splines
+        for s in splines:
+            #どの頂点が選択されているかを確かめる
+            if s.type == "BEZIER":
+                for p in s.bezier_points:
+                    if p.select_control_point == True:
+                        s.resolution_u = self.my_resolution_u
+            else:
+                for p in s.points:
+                    if p.select == True:
+                        s.resolution_u = self.my_resolution_u
+                
+        return {'FINISHED'}
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+
+#FreeStyleだけを描画する処理
+class OnlyFreeStylePhoto(bpy.types.Operator):
+    bl_idname = "object.onlyfreestylephoto"
+    bl_label = "OnlyFreestyle Photo"
+    bl_description = "Freestyleだけをレンダリング"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_onlySelect = bpy.props.BoolProperty(default=False,name="Only Select")
+    my_makeGP = bpy.props.BoolProperty(default=False,name="Make GreasePencil")
+    my_line_width = bpy.props.FloatProperty(default=3.0,name="Line Width")
+    
+    def execute(self, context):
+        
+        #FreestyleをONにする
+        pre_use_freestyle = bpy.context.scene.render.use_freestyle
+        bpy.context.scene.render.use_freestyle = True
+        pre_layer_use_freestyle = bpy.context.scene.render.layers.active.use_freestyle
+        bpy.context.scene.render.layers.active.use_freestyle = True
+        #レンダリング設定を保存して外す
+        pre_use_zmask = bpy.context.scene.render.layers.active.use_zmask
+        bpy.context.scene.render.layers.active.use_zmask =False
+        pre_invert_zmask = bpy.context.scene.render.layers.active.invert_zmask
+        bpy.context.scene.render.layers.active.invert_zmask = False
+        pre_use_all_z = bpy.context.scene.render.layers.active.use_all_z
+        bpy.context.scene.render.layers.active.use_all_z = False
+        pre_use_solid = bpy.context.scene.render.layers.active.use_solid
+        bpy.context.scene.render.layers.active.use_solid = False
+        pre_use_halo = bpy.context.scene.render.layers.active.use_halo
+        bpy.context.scene.render.layers.active.use_halo = False
+        pre_use_ztransp = bpy.context.scene.render.layers.active.use_ztransp
+        bpy.context.scene.render.layers.active.use_ztransp = False
+        pre_use_sky = bpy.context.scene.render.layers.active.use_sky
+        bpy.context.scene.render.layers.active.use_sky = False
+        pre_use_edge_enhance = bpy.context.scene.render.layers.active.use_edge_enhance
+        bpy.context.scene.render.layers.active.use_edge_enhance = False
+        pre_use_strand = bpy.context.scene.render.layers.active.use_strand
+        bpy.context.scene.render.layers.active.use_strand = False
+        pre_use_ao = bpy.context.scene.render.layers.active.use_ao
+        bpy.context.scene.render.layers.active.use_ao = False
+        
+        #選択中のオブジェクトだけをレンダリングするようにgroupを設定＆変更
+        if self.my_onlySelect:
+            selobjs = bpy.context.selected_objects
+            linegroup = bpy.data.groups.new("OnlyFreeStyleGroup")
+            for o in selobjs:
+                linegroup.objects.link(o)
+            linesets = bpy.context.scene.render.layers.active.freestyle_settings.linesets
+            pre_groupList =[]
+            if len(linesets) <= 0:
+                bpy.ops.scene.freestyle_lineset_add()
+            for l in linesets:
+                if l.show_render == True:
+                    pre_groupList.append([l.select_by_group, l.group, l.group_negation])
+                    l.select_by_group = True
+                    l.group = linegroup
+                    l.group_negation = 'INCLUSIVE'
+        
+        #Freestyleをグリースペンシルに変換する
+        def post_lineset_makegp(scene, layer, lineset):
+            #freeStyleの3D上での位置はこうして見つける
+#            for i in range(Operators().get_strokes_size()):
+#                for j in Operators().get_stroke_from_index(i):
+#                    print(j.point_3d.x)
+            scene = bpy.context.scene
+            gp = None
+            if scene.tool_settings.grease_pencil_source == "SCENE":
+                if scene.grease_pencil == None:
+                    bpy.ops.gpencil.data_add()
+                gp = scene.grease_pencil
+            else:
+                if scene.objects.active.grease_pencil == None:
+                    bpy.ops.gpencil.data_add()
+                gp = scene.objects.active.grease_pencil
+            layer = None
+            if gp.layers.active != None:
+                layer = gp.layers.active
+            else:
+                layer = gp.layers.new("FreeStyle", set_active=True)
+            frame = None
+            for f in layer.frames:
+                if f.frame_number == scene.frame_current:
+                    frame = f
+                    frame.clear()
+                    break
+            else:
+                frame = layer.frames.new(scene.frame_current)
+            if len(gp.palettes) <= 0:
+                bpy.ops.gpencil.palette_add()
+            if len(gp.palettes.active.colors) <= 0:
+                bpy.ops.gpencil.palettecolor_add()
+            gpColor = gp.palettes.active.colors.active
+            mat = bpy.context.scene.camera.matrix_local.copy()
+            for i in range(Operators().get_strokes_size()):
+                try:
+                    stroke = frame.strokes.new()
+                    stroke.draw_mode = '3DSPACE'
+                    stroke.line_width = self.my_line_width
+                    stroke.colorname = gpColor.name
+                    stroke.points.add(len(Operators().get_stroke_from_index(i)))
+                except:
+                    print("makeGP stroke ERROR")
+                finally:
+                    for i,v in enumerate(Operators().get_stroke_from_index(i)):
+                        try:
+                            stroke.points[i].co = mat * v.point_3d
+                            stroke.points[i].strength = 1
+                            stroke.points[i].pressure = 1
+                        except:
+                            print("makeGP points ERROR")
+        if self.my_makeGP:
+            #グリースペンシルを設定する
+            if bpy.context.scene.tool_settings.grease_pencil_source == 'SCENE':
+                if bpy.context.scene.grease_pencil == None:
+                    bpy.ops.gpencil.data_add()
+                if len(bpy.context.scene.grease_pencil.palettes) <= 0:
+                    bpy.ops.gpencil.palette_add()
+                if len(bpy.context.scene.grease_pencil.palettes.active.colors) <= 0:
+                    bpy.ops.gpencil.palettecolor_add()
+            else:
+                if bpy.context.scene.objects.active.grease_pencil == None:
+                    bpy.ops.gpencil.data_add()
+                if len(bpy.context.scene.objects.active.grease_pencil.palettes) <= 0:
+                    bpy.ops.gpencil.palette_add()
+                if len(bpy.context.scene.objects.active.grease_pencil.palettes.active.colors) <= 0:
+                    bpy.ops.gpencil.palettecolor_add()
+            #FreeStyle描画後の処理を設定
+            parameter_editor.callbacks_lineset_post.append(post_lineset_makegp)
+        
+        #レンダリング後の処理をセット
+        def post_render(scene):
+            #FreeStyleの設定を元に戻す(後でfreeStyleのPostに移す)
+            bpy.context.scene.render.use_freestyle = pre_use_freestyle
+            bpy.context.scene.render.layers.active.use_freestyle = pre_layer_use_freestyle
+            bpy.context.scene.render.layers.active.use_zmask = pre_use_zmask
+            bpy.context.scene.render.layers.active.invert_zmask = pre_invert_zmask
+            bpy.context.scene.render.layers.active.use_all_z = pre_use_all_z
+            bpy.context.scene.render.layers.active.use_solid = pre_use_solid
+            bpy.context.scene.render.layers.active.use_halo = pre_use_halo
+            bpy.context.scene.render.layers.active.use_ztransp = pre_use_ztransp
+            bpy.context.scene.render.layers.active.use_sky = pre_use_sky
+            bpy.context.scene.render.layers.active.use_edge_enhance = pre_use_edge_enhance
+            bpy.context.scene.render.layers.active.use_strand = pre_use_strand
+            bpy.context.scene.render.layers.active.use_ao = pre_use_ao
+            #選択中のオブジェクトだけをレンダリングするようにgroupを元に戻す
+            if self.my_onlySelect:
+                for l in linesets:
+                    for g in pre_groupList:
+                        l.group = g[1]
+                        l.select_by_group = g[0]
+                        l.group_negation = g[2]
+                for o in selobjs:
+                    bpy.data.groups[linegroup.name].objects.unlink(o)
+                    
+            #Freestyleをグリースペンシルに変換するための設定を外す
+            if self.my_makeGP:
+                parameter_editor.callbacks_lineset_post.remove(post_lineset_makegp)
+                
+            #処理自体を消去
+            bpy.app.handlers.render_post.remove(post_render)
+            
+        #レンダー後の処理を設定
+        bpy.app.handlers.render_post.append(post_render)
+        
+        #レンダリング
+        if self.my_makeGP:
+            bpy.ops.render.render()
+        else:
+            bpy.ops.render.render("INVOKE_DEFAULT")
+        
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self) 
+    
+#選択中のグリースペンシルの密度が高い場所の線の太さを変える
+class GpReduceHighDensityParts(bpy.types.Operator):
+    bl_idname = "object.gpreducehighdensityparts"
+    bl_label = "Reduce high density parts"
+    bl_description = "!!!実験中選択中のグリースペンシルの密度が高い場所の線の太さを変える"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_range = bpy.props.FloatProperty(default=0.1,name="Line Width")
+    my_lenpoint = bpy.props.IntProperty(default=5,name="Len Point",min=0)
+    my_pressure = bpy.props.FloatProperty(default=0.5,name="pressure")
+    my_strength = bpy.props.FloatProperty(default=0.5,name="strength")
+    
+    
+    def execute(self, context):
+        #グリースペンシルを取得
+        gp = None
+        if bpy.context.scene.tool_settings.grease_pencil_source == 'SCENE':
+            gp = bpy.context.scene.grease_pencil
+        else:
+            gp = bpy.context.scene.objects.active.grease_pencil
+        #グリースペンシルの位置を取得
+        gplayer = gp.layers.active
+        scene = bpy.context.scene
+        if gplayer.active_frame != None:
+            #ポイントとカメラとの相対角度のリスト[ポイント,相対角度]
+            pointList = []
+            cam = bpy.context.scene.camera
+            frame = gplayer.active_frame
+            for s in frame.strokes:
+                for p in s.points:
+                    #相対角度を割り出す
+                    #ワールド空間からローカル空間に位置を変換
+                    local_co = cam.matrix_local * p.co
+                    angle = math.degrees(math.atan2(local_co.z,-local_co.y))
+                    print(p.co,local_co,angle)
+                    pass
+                
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+#グリースペンシルに入りと抜きを入れる
+class GpIritonuki(bpy.types.Operator):
+    bl_idname = "object.gpiritonuki"
+    bl_label = "GP Iritonuki"
+    bl_description = "グリースペンシルに入りと抜きを入れる"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_pressure = bpy.props.BoolProperty(default=True,name="pressure")
+    my_strength = bpy.props.BoolProperty(default=True,name="strangth")
+    
+    my_value1 = bpy.props.FloatProperty(default=0.5,name="value1",min=0.0,max=1.0)
+    my_value2 = bpy.props.FloatProperty(default=0.0,name="value2",min=-1.0,max=1.0)
+    
+    def execute(self, context):
+        #グリースペンシルを取得
+        gp = None
+        if bpy.context.scene.tool_settings.grease_pencil_source == 'SCENE':
+            gp = bpy.context.scene.grease_pencil
+        else:
+            gp = bpy.context.scene.objects.active.grease_pencil
+        #グリースペンシルの位置を取得
+        gplayer = gp.layers.active
+        scene = bpy.context.scene
+        if gplayer.active_frame != None:
+            #平面化した頂点のリスト(平面前のポイント, 平面化済みの座標)
+            point2dList = []
+            frame = gplayer.active_frame
+            for s in frame.strokes:
+                pointlen = len(s.points)
+                if pointlen <= 1:
+                    continue
+                harf = (pointlen-1)/2
+                one = 1/(pointlen-1)
+                #入りと抜きの度合いを決定する
+                for i,p in enumerate(s.points):
+                    #数値に合わせて頂点に半径を設定
+                    x = one * i
+                    if x <= self.my_value1:
+                        hankei = x + self.my_value2
+                    else:
+                        hankei = 1-x + self.my_value2
+                    if self.my_strength: p.strength = hankei*2
+                    if self.my_pressure: p.pressure = hankei*2
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+#グリースペンシルを細分化
+class GpSubdivide(bpy.types.Operator):
+    bl_idname = "object.gpsubdivide"
+    bl_label = "GP Subdivide"
+    bl_description = "グリースペンシルを細分化"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_subdivide = bpy.props.IntProperty(default=2,min=1,max=10,name="subdivide")
+    
+    def execute(self, context):
+        #グリースペンシルを取得
+        gp = None
+        if bpy.context.scene.tool_settings.grease_pencil_source == 'SCENE':
+            gp = bpy.context.scene.grease_pencil
+        else:
+            gp = bpy.context.scene.objects.active.grease_pencil
+        #グリースペンシルの位置を取得
+        gplayer = gp.layers.active
+        scene = bpy.context.scene
+        gpColor = gp.palettes.active.colors.active
+        if gplayer.active_frame != None:
+            for j in range(self.my_subdivide):
+                #変換後のストロークを保存するリスト
+                post_sList = []
+                frame = gplayer.active_frame
+                post_width = 1
+                for s in frame.strokes:
+                    post_s = []
+                    post_width = s.line_width
+                    #入りと抜きの度合いを決定する
+                    for i,p in enumerate(s.points):
+                        #最初と最後だった場合は処理しないでそのまま入れる
+                        if p == s.points[0]:
+                            post_s.append([p.co,p.strength,p.pressure])
+                            continue
+                        #1個前のポイントとこのポイントとの間のポイントを追加していく
+                        post_co = ((p.co - s.points[i-1].co)/2)+s.points[i-1].co
+                        post_str = (p.strength+s.points[i-1].strength)/2
+                        post_press = (p.pressure+s.points[i-1].pressure)/2
+                        post_s.append([post_co,post_str,post_press])
+                        #このポイントを追加する
+                        post_s.append([p.co,p.strength,p.pressure])
+                    #ポイントが最初と最後の2つだけだった時はそれを割った値を出す
+                    if len(post_s) == 2:
+                        ins_co = ((post_s[1][0] - post_s[0][0])/2)+post_s[0][0]
+                        ins_str = (post_s[1][1]+post_s[0][1])/2
+                        ins_press = (post_s[1][2]+post_s[0][2])/2
+                        post_s.insert(1,[ins_co,ins_str,ins_press])
+                    #新しいストロークをリストに入れる
+                    post_sList.append(post_s)
+                #全てのストロークを消し
+                #post_sListを元に新しいストロークを作る
+                for i in range(len(frame.strokes)):
+                    frame.strokes.remove(frame.strokes[0])
+                for pos in post_sList:
+                    st = frame.strokes.new(gpColor.name)
+                    st.draw_mode = '3DSPACE'
+                    st.line_width = post_width
+                    st.points.add(count=len(pos))
+                    for i,po in enumerate(pos):
+                        st.points[i].co = po[0]
+                        st.points[i].strength = po[1]
+                        st.points[i].pressure = po[2]
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self)
+    
+#グリースペンシルが設定してあるフレームのみレンダリング
+class GpFrameRender(bpy.types.Operator):
+    bl_idname = "object.gpframerender"
+    bl_label = "GP Frame Render"
+    bl_description = "グリースペンシルが設定してあるフレームのみレンダリング"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    my_opengl = bpy.props.BoolProperty(default=True,name="Open GL")
+    
+    def execute(self, context):
+        scene = bpy.context.scene
+        gp = None
+        if scene.tool_settings.grease_pencil_source == "SCENE":
+            gp = scene.grease_pencil
+        else:
+            gp = scene.objects.active.grease_pencil
+        gp_frame = []
+        for f in gp.layers.active.frames:
+            gp_frame.append(f.frame_number)
+        print(gp_frame)
+        
+        scn = bpy.context.scene
+
+        output_path = scn.render.filepath
+        
+        import os
+        # 4桁のフレーム数を返す
+        def formatNumbers(number, length):
+            return '%0*d' % (length, number)
+        
+        # レンダリングするフレームを決める
+        oldrendflame = 0
+        for f in range(scn.frame_start,scn.frame_end):
+            #最初とフレームとグリースペンシルがあるフレームだけレンダリング
+            rendflame = False
+            for gpf in gp_frame:
+                if f == gpf:
+                    rendflame = True
+            if f == scn.frame_start:
+                rendflame = True
+            if rendflame == False:
+                oldfilepath = os.path.join(output_path,
+                    formatNumbers(oldrendflame, 4) + ".png",)
+                newfilepath = os.path.join(output_path,
+                    formatNumbers(f, 4) + ".png",)
+                import shutil
+                shutil.copyfile(oldfilepath, newfilepath)
+                continue
+            # フレームをセット
+            scn.frame_set(f)
+            # ファイルパスをセット
+            scn.render.filepath = os.path.join(
+                    output_path,
+                    formatNumbers(f, 4) + ".png",)
+            if self.my_opengl:
+                # OpenGLをレンダ
+                bpy.ops.render.opengl(write_still=True)
+            else:
+                bpy.ops.render.render(write_still = True)
+            oldrendflame = f
+
+        # reset internal filepath
+        bpy.context.scene.render.filepath = output_path
+        
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self) 
+    
+#FreeStyleをグリースペンシルに変換する処理のアニメ版(未完成)
+class OnlyFreeStyleAnime(bpy.types.Operator):
+    bl_idname = "object.onlyfreestyleanime"
+    bl_label = "OnlyFreeStyle Anime"
+    bl_description = "指定されたフレーム間のFreestyleだけをレンダリング"
+    bl_options = {'REGISTER','UNDO'}
+    bl_space_type = "VIEW_3D"
+    bl_region_type = "TOOLS"
+    
+    def execute(self, context):
+        return {'FINISHED'}
+    
+    def invoke(self, context, event):
+        wm = context.window_manager
+        return wm.invoke_props_dialog(self) 
+    
+#    Store properties in the active scene
+def initSceneProperties(scn):
+    
+    bpy.types.Scene.OnlySelect = BoolProperty(
+    name = "Only Selected one", 
+    description = "選択されているものだけをFreeStyleで描画")
+    scn['OnlySelect'] = False
+    
+    bpy.types.Scene.ConvGP = BoolProperty(
+    name = "Convert to grease pencil", 
+    description = "FreeStyleをグリースペンシルに変換")
+    scn['ConvGP'] = False
+    
+    return
+initSceneProperties(bpy.context.scene) #ここでちゃんと登録
+        
+#FreeStyleレンダリングの後処理
+def post_lineset(scene, layer, lineset):
+    pass
+    #print('post_lineset')
+    #print('size',Operators().get_strokes_size())
+    #freeStyleの3D上での位置はこうして見つける
+    #print('index',Operators().get_stroke_from_index(0)[1].point_3d)
+    
 #Menu in tools region
 class AnimeHairPanel(bpy.types.Panel):
     bl_label = "Amasawa Tools"
@@ -2433,7 +3334,7 @@ class AnimeHairPanel(bpy.types.Panel):
     bl_context = "objectmode"
     bl_region_type = "TOOLS"
     bl_category = "Tools"
- 
+    
     def draw(self, context):
         hairCol = self.layout.column(align=True)
         hairCol.label(text="Create:")
@@ -2453,7 +3354,26 @@ class AnimeHairPanel(bpy.types.Panel):
         col.operator("object.gp2line")
         col.operator("object.gp2mesh")
         col.operator("object.gp2animehair")
+        col.operator("object.curve2gp")
         
+        col4 = self.layout.column(align=True)
+        col4.label(text="GreasePencilEdit:")
+        #col4.operator("object.gpreducehighdensityparts")
+        col4.operator("object.gpiritonuki")
+        col4.operator("object.gpsubdivide")
+        
+        col2 = self.layout.column(align=True)
+        col2.label(text="Render:")
+        col2.operator("object.onlyfreestylephoto")
+        col2.operator("object.gpframerender")
+#        col2.operator("object.onlyfreestyleanime")
+#        layout = self.layout
+#        scn = context.scene
+#        col2.prop(scn, 'OnlySelect',toggle=True)
+#        col2.prop(scn, 'ConvGP',toggle=True)
+
+        
+        col3 = self.layout.column(align=True)
         if context.space_data.type == 'VIEW_3D':
             propname = "gpencil_stroke_placement_view3d"
         elif context.space_data.type == 'SEQUENCE_EDITOR':
@@ -2463,34 +3383,54 @@ class AnimeHairPanel(bpy.types.Panel):
         else:
             propname = "gpencil_stroke_placement_view2d"
         ts = context.tool_settings
-        col.label(text="Stroke Placement:")
-        row = col.row(align=True)
+        col3.label(text="Stroke Placement:")
+        row = col3.row(align=True)
         row.prop_enum(ts, propname, 'VIEW')
         row.prop_enum(ts, propname, 'CURSOR')
         if context.space_data.type == 'VIEW_3D':
-            row = col.row(align=True)
+            row = col3.row(align=True)
             row.prop_enum(ts, propname, 'SURFACE')
             row.prop_enum(ts, propname, 'STROKE')
-            row = col.row(align=False)
+            row = col3.row(align=False)
             row.active = getattr(ts, propname) in {'SURFACE', 'STROKE'}
             row.prop(ts, "use_gpencil_stroke_endpoints")
 
-        col.label(text="all of Spline IK:")
-        row = col.row(align=True)
+        col3.label(text="all of Spline IK:")
+        row = col3.row(align=True)
         row.operator("object.viewspik",text="View")
         row.operator("object.hiddenspik",text="Mute")
-        col.label(text="all of Bone constraints:")
-        row = col.row(align=True)
+        col3.label(text="all of Bone constraints:")
+        row = col3.row(align=True)
         row.operator("object.viewboneconst",text="View")
         row.operator("object.hidenboneconst",text="Mute")
         
         latcol = self.layout.column(align=True)
         latcol.label(text="Object:")
-        latcol.operator("object.setcamelattice")
+        
+        latrow = latcol.row(align=True)
+        latrow.operator("object.setcamelattice",text="Set Camelattice")
+        latrow.operator("object.delnonelattice",text="Del None Lattice")
+        
         latcol.operator("object.randarray")
         latcol.operator("object.makebuildings")
         latcol.operator("object.makethreeviews")
         
+class AnimeHairCurveEditPanel(bpy.types.Panel):
+    bl_label = "Amasawa Tools"
+    bl_space_type = "VIEW_3D"
+    bl_context = "curve_edit"
+    bl_region_type = "TOOLS"
+    bl_category = "Tools"
+    
+    def draw(self, context):
+        col = self.layout.column(align=True)
+        col.operator("object.curvetwist")
+        col.operator("object.curvetwistreset")
+        col = self.layout.column(align=True)
+        col.operator("object.setcurveradius")
+        col = self.layout.column(align=True)
+        col.operator("object.setcurveorderu")
+        col.operator("object.setcurveresolutionu")
         
 def register():# 登録
     bpy.utils.register_class(AnimeHairOperator)
@@ -2513,14 +3453,34 @@ def register():# 登録
     bpy.utils.register_class( Gp2AnimehairOperator )
     bpy.utils.register_class( Crease2LineOperator )
     bpy.utils.register_class( Gp2MeshOperator )
+    bpy.utils.register_class( Curve2GPOperator )
     
     bpy.utils.register_class(SetCamelattice)
+    bpy.utils.register_class(DelNonelattice)
+    
     bpy.utils.register_class(RandArray)
     bpy.utils.register_class(MakeBuildings)
     bpy.utils.register_class(MakeMakeThreeViews)
     
+    bpy.utils.register_class(AnimeHairCurveEditPanel)
+    bpy.utils.register_class(CurveTwist)
+    bpy.utils.register_class(CurveTwistReset)
+    bpy.utils.register_class(SetCurveRadius)
+    bpy.utils.register_class(SetCurveOrderU)
+    bpy.utils.register_class(SetCurveResolutionU)
+    
+    bpy.utils.register_class(OnlyFreeStylePhoto)
+    bpy.utils.register_class(OnlyFreeStyleAnime)
+    
+    bpy.utils.register_class(GpReduceHighDensityParts)
+    
+    bpy.utils.register_class(GpFrameRender)
+    bpy.utils.register_class(GpIritonuki)
+    bpy.utils.register_class(GpSubdivide)
     
     bpy.types.VIEW3D_MT_edit_mesh_specials.append( menu_draw )
+    
+    
     
 def unregister():# 解除
     bpy.utils.unregister_class(AnimeHairOperator)
@@ -2543,11 +3503,30 @@ def unregister():# 解除
     bpy.utils.unregister_class( Gp2AnimehairOperator )
     bpy.utils.unregister_class( Crease2LineOperator )
     bpy.utils.unregister_class( Gp2MeshOperator )
+    bpy.utils.unregister_class( Curve2GPOperator )
     
     bpy.utils.unregister_class( SetCamelattice)
+    bpy.utils.unregister_class( DelNonelattice)
+    
     bpy.utils.unregister_class( RandArray )
     bpy.utils.unregister_class(MakeBuildings)
     bpy.utils.unregister_class(MakeMakeThreeViews)
+    
+    bpy.utils.unregister_class(AnimeHairCurveEditPanel)
+    bpy.utils.unregister_class(CurveTwist)
+    bpy.utils.unregister_class(CurveTwistReset)
+    bpy.utils.unregister_class(SetCurveRadius)
+    bpy.utils.unregister_class(SetCurveOrderU)
+    bpy.utils.unregister_class(SetCurveResolutionU)
+    
+    bpy.utils.unregister_class(OnlyFreeStylePhoto)
+    bpy.utils.unregister_class(OnlyFreeStyleAnime)
+    
+    bpy.utils.unregister_class(GpReduceHighDensityParts)
+    
+    bpy.utils.unregister_class(GpFrameRender)
+    bpy.utils.unregister_class(GpIritonuki)
+    bpy.utils.unregister_class(GpSubdivide)
     
     bpy.types.VIEW3D_MT_edit_mesh_specials.remove( menu_draw )
   
