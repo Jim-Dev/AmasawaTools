@@ -3303,21 +3303,21 @@ class OnlyFreeStyleAnime(bpy.types.Operator):
         wm = context.window_manager
         return wm.invoke_props_dialog(self) 
     
-#    Store properties in the active scene
-def initSceneProperties(scn):
-    
-    bpy.types.Scene.OnlySelect = BoolProperty(
-    name = "Only Selected one", 
-    description = "選択されているものだけをFreeStyleで描画")
-    scn['OnlySelect'] = False
-    
-    bpy.types.Scene.ConvGP = BoolProperty(
-    name = "Convert to grease pencil", 
-    description = "FreeStyleをグリースペンシルに変換")
-    scn['ConvGP'] = False
-    
-    return
-initSceneProperties(bpy.context.scene) #ここでちゃんと登録
+##    Store properties in the active scene
+#def initSceneProperties(scn):
+#    
+#    bpy.types.Scene.OnlySelect = BoolProperty(
+#    name = "Only Selected one", 
+#    description = "選択されているものだけをFreeStyleで描画")
+#    scn['OnlySelect'] = False
+#    
+#    bpy.types.Scene.ConvGP = BoolProperty(
+#    name = "Convert to grease pencil", 
+#    description = "FreeStyleをグリースペンシルに変換")
+#    scn['ConvGP'] = False
+#    
+#    return
+#initSceneProperties(bpy.context.scene) #ここでちゃんと登録
         
 #FreeStyleレンダリングの後処理
 def post_lineset(scene, layer, lineset):
